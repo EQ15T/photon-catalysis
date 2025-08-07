@@ -9,7 +9,7 @@ from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 import logging
-from utils import *
+from photon_catalysis.utils import *
 
 
 """
