@@ -17,9 +17,7 @@ pip install -e git+https://github.com/EQ15T/photon-catalysis.git#egg=photon_cata
 ## Usage Example
 Using this software, one could obtain the set of linear forms in annihilation operator, such that their product,
 upon conditioning, corresponds to the desired core state. For exmaple, for the state 
-$$
-\ket{\psi} \propto \ket{2000} + \ket{0200} + \ket{0020} + \ket{0002}
-$$
+$$ \ket{\psi} \propto \ket{2000} + \ket{0200} + \ket{0020} + \ket{0002} $$
 the following code could be used:
 ```python
 from photon_catalysis.utils import kets_to_state_dict
