@@ -26,3 +26,6 @@ license-files = ["LICENSE.md"]
 
 [project.urls]
 Homepage = "https://github.com/EQ15T/photon-catalysis"
+
+[tool.hatch.metadata]
+allow-direct-references = true
