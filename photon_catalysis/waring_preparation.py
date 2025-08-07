@@ -130,6 +130,17 @@ def projection_prob(w: np.ndarray, rank: int, degree: int, alpha: sp.Basic):
     p_success = state_norm(projected_state)**2
     return p_success, projected_state
 
+def optimize_probability_by_scaling(p_success: sp.Expr, alpha: sp.Basic) -> tuple[complex, float]:
+    eval_p_success = sp.lambdify(alpha, p_success, modules='numpy')
+
+    def p_success_fn(alpha):
+        return -eval_p_success(alpha[0]+1j*alpha[1])
+
+    opt_result = opt.minimize(p_success_fn, x0=[+1.0, 0.0])
+    best_scaling = opt_result.x[0]+1j*opt_result.x[1]
+    best_prob = eval_p_success(best_scaling)
+    return best_scaling, best_prob
+
 
 def waring_preparation(
         target_state: StateDict,
@@ -140,9 +151,9 @@ def waring_preparation(
         tolerance: float=1e-10,
         lr:float =0.01):
     """
-    Yields tuples of the form ``(W, p)``, where ``W`` is a matrix which rows define set of linear forms for the
+    Yields tuples of the form ``(W, p, f)``, where ``W`` is a matrix which rows define set of linear forms for the
     multiport interferometer. ``p`` is the probability of successfully conditioning on having ``n`` photons in the
-    ancillary mode, where ``n = rank*(modes - 1)``.
+    ancillary mode, where ``n = rank*(modes - 1)``. ``f`` is the fidelity with the target state.
 
     :param target_state:
     :param candidate_ranks: Different ranks to try
@@ -153,23 +164,22 @@ def waring_preparation(
     :param lr: Learning rate.
     """
     target_state = normalized_state(target_state)
+    target_state_array = state_dict_to_array(target_state)
     T = state_to_tensor(target_state)
     degree = len(T.shape)
     num_modes = T.shape[0]
     T = T / get_renorm_tensor(num_modes, degree)[0]
     assert (list(set(T.shape))==[num_modes])
 
-    def get_success_probability(W: np.ndarray, rank: int, alpha: sp.Basic):
-        # consumes too much memory!
+    rank_found = False
+    for rank in candidate_ranks:
+
+        # This could, theoretically, be used, but it consumes too much memory and works too slow
+        # Instead we use SymPy to expand the product of linear forms on the level of polynomials
         # helper = StateOptimizationHelper(target_state, degree*(rank-1))
         # infidelity_fn = helper.get_loss_fn()
         # prob_fn = helper.get_prob_fn()
-        # return prob_fn(W)
-        return projection_prob(W, rank, degree, alpha)
 
-
-    rank_found = False
-    for rank in candidate_ranks:
         for attempt in range(num_decompositions):
             logger.info(f'Searching for a decomposition of rank {rank}, attempt {attempt+1}/{num_decompositions}')
             W, loss = symmetric_tensor_decomposition(T, rank, start_seed + attempt, num_iterations, tolerance, lr)
@@ -177,25 +187,14 @@ def waring_preparation(
                 rank_found = True
                 W = decomposition_to_linear_forms(W, degree)
 
-                logger.info('Optimizing success probability')
-
+                logger.debug('Optimizing success probability')
                 alpha = sp.Symbol('\\alpha')
-                p_success, final_state = get_success_probability(np.asarray(W), rank, alpha)
-                logger.debug('p_succ finished')
-                eval_p_success = sp.lambdify(alpha, p_success, modules='numpy')
-                logger.debug('lambdify finished')
-                def p_success_fn(alpha):
-                    return -eval_p_success(alpha[0]+1j*alpha[1])
-                opt_result = opt.minimize(p_success_fn, x0=[+1.0, 0.0])
-                logger.debug('opt finished')
-                best_scaling = opt_result.x[0] + 1j*opt_result.x[1]
-                best_prob = eval_p_success(best_scaling)
-                W[:, 1:] *= best_scaling
+                p_success, final_state = projection_prob(np.asarray(W), rank, degree, alpha)
+                s, p = optimize_probability_by_scaling(p_success, alpha)
+                final_state = normalized_state({k: v.subs({alpha: s}) for k, v in final_state.items()})
+                final_state_array = state_dict_to_array(final_state)
 
-                # to get the state after projection
-                # final_state = {k: v.subs({alpha: best_scaling}) for k, v in final_state.items()}
-
-                yield W, best_prob
+                yield W, p, 1 - infidelity(final_state_array, target_state_array)
 
             if attempt == 4 and not rank_found:
                 logger.warning(f'Unable to find a decomposition of rank {rank}')
