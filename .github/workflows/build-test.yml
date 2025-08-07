@@ -15,7 +15,7 @@ jobs:
       - name: Build wheel
         run: |
           python -m pip install --upgrade pip wheel
-          pythom -m pip wheel . -w wheels
+          python -m pip wheel . -w wheels
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
