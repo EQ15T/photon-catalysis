@@ -15,10 +15,10 @@ expected_extra_photons = {
     'psi_8': 2,
     'psi_9': 2,
     'psi_10': 2,
-    'psi_subgeneric': 1,
-    'psi_supergeneric': 1,
-    'psi_generic': 1,
-    'psi_K3': 2
+    'R4': 1,
+    'R5': 1,
+    'R2': 1,
+    'K3': 2
 }
 assert(expected_extra_photons.keys() == all_states.keys())
 
