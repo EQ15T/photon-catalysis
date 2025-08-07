@@ -1,6 +1,6 @@
 import pytest
 
-from test_photon_catalysis.states import all_states
+from states import all_states
 from photon_catalysis.optimal_preparation import optimal_preparation
 
 

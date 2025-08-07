@@ -1,6 +1,6 @@
 import pytest
 
-from test_photon_catalysis.states import all_states
+from states import all_states
 from photon_catalysis.waring_preparation import waring_preparation, projection_prob
 from photon_catalysis.utils import state_dict_to_array, infidelity
 
