@@ -1,3 +1,7 @@
+"""
+This module contains functions related to the state preparation using Waring decomposition, i.e. implementing the
+solution of the Theorem 1 from https://arxiv.org/abs/2507.19397
+"""
 from typing import Iterable
 
 import jax
@@ -10,11 +14,6 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 
 import logging
 from photon_catalysis.utils import *
-
-
-"""
-This module contains functions related to the state preparation using Waring decomposition.
-"""
 
 
 logger = logging.getLogger(__name__)

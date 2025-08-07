@@ -1,3 +1,8 @@
+"""
+This module contains functions related to the state preparation using direct optimization on tensors. Theoretically,
+it corresponds to the solution of the decomposition in Theorem 2 in https://arxiv.org/abs/2507.19397, or, alternatively,
+it could be viewed as a generalization of Kopulov's method proposed in https://doi.org/10.1103/sv6z-v1gk.
+"""
 import jax
 import numpy as np
 import optax
@@ -8,13 +13,6 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 
 import logging
 from photon_catalysis.utils import *
-
-
-"""
-This module contains functions related to the state preparation using direct optimization on tensors. Theoretically,
-it corresponds to the solution of the decomposition in Theorem 2, or, alternatively, it could be viewed as a generalization
-of Kopulov's method proposed in https://doi.org/10.1103/sv6z-v1gk.
-"""
 
 
 logger = logging.getLogger(__name__)

@@ -1,3 +1,22 @@
+"""
+This modules contains functions shared by different methods discussed in the paper.
+
+In general, there are 5 ways utilized to represent core states:
+
+    * list of kets, i.e. ``[(0, 4, 0), (1, 2, 1), (2, 0, 2)]``. This type is somewhat defective as it only supports
+      kets to have coefficient 1 or 0, but it may be sometimes convenient.
+    * ``StateDict``, i.e. ``{(0, 4, 0): 1, (1, 2, 1): 1, (2, 0, 2): 1}``. Should be pretty clear.
+    * State Array. For a core state having ``d`` photons in ``M`` modes, this type is an array of shape
+      ``(d+1, d+1, ..., d+1)`` (M times). It could be thought as of dense representation of ``StateDict``.
+    * State Tensor. For a core state having ``d`` photons in ``M`` modes, this type is an array of shape
+      ``(M, ..., M)`` (d times). This is the "true" symmetric tensor corresponding to the state, i.e. we have
+      the following property: ``T[idx] == T[s(idx)]`` for any permutation of indexes ``s``. Intuitively, it encodes
+      "which indices to multiply together", i.e. the element ``(0, ..., 0)`` stores the coefficient of |d, 0, ..., 0>.
+    * `sympy.Poly`. When polynomial is used, it corresponds directly to the stellar polynomial. Note that the conversion
+       between states and polynomials requires "renormalization" with square roots of factorials!
+
+    State tensor representation is used only when expanding the product of linear forms, i.e. after ``L_to_tensor``.
+"""
 import copy
 
 import math
@@ -9,27 +28,6 @@ import jax.numpy as jnp
 from functools import reduce
 from operator import mul
 import itertools
-
-
-"""
-This modules contains functions shared by different methods discussed in the paper. 
-
-In general, there are 5 ways utilized to represent core states:
-
-    * list of kets, i.e. ``[(0, 4, 0), (1, 2, 1), (2, 0, 2)]``. This type is somewhat defective as it only supports
-      kets to have coefficient 1 or 0, but it may be sometimes convenient.
-    * ``StateDict``, i.e. ``{(0, 4, 0): 1, (1, 2, 1): 1, (2, 0, 2): 1}``. Should be pretty clear.
-    * State Array. For a core state having ``d`` photons in ``M`` modes, this type is an array of shape 
-      ``(d+1, d+1, ..., d+1)`` (M times). It could be thought as of dense representation of ``StateDict``.
-    * State Tensor. For a core state having ``d`` photons in ``M`` modes, this type is an array of shape 
-      ``(M, ..., M)`` (d times). This is the "true" symmetric tensor corresponding to the state, i.e. we have
-      the following property: ``T[idx] == T[s(idx)]`` for any permutation of indexes ``s``. Intuitively, it encodes
-      "which indices to multiply together", i.e. the element ``(0, ..., 0)`` stores the coefficient of |d, 0, ..., 0>.
-    * `sympy.Poly`. When polynomial is used, it corresponds directly to the stellar polynomial. Note that the conversion 
-       between states and polynomials requires "renormalization" with square roots of factorials! 
-      
-    State tensor representation is used only when expanding the product of linear forms, i.e. after ``L_to_tensor``.
-"""
 
 
 StateDict = dict[tuple[int, ...], sp.Basic]
