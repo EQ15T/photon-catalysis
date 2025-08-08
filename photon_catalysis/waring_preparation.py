@@ -100,46 +100,6 @@ def decomposition_to_linear_forms(dec: np.ndarray, degree: int) -> np.ndarray:
             m[i * degree + j, :] = np.concatenate((np.array([1]), phi * (w ** j) * dec[i, :]))
     return np.array(m)
 
-def linear_forms_to_polynomial(
-        w: np.ndarray,
-        variables: list[sp.Symbol],
-        ancilia: sp.Symbol,
-        alpha=1) -> sp.poly:
-    p = 1
-    num_photon_additions = w.shape[0]
-    for i in range(num_photon_additions):
-        p *= sum(w[i, j] * variable * (alpha if j > 0 else 1) for j, variable in enumerate([ancilia] + list(variables)))
-    return sp.Poly(p, [ancilia] + list(variables))
-
-def project_state(
-    state_dict: StateDict,
-    mode_number: int,
-    target_photon_count: int) -> StateDict:
-    def remove_projected_mode(ket):
-        return tuple([m for i, m in enumerate(ket) if i!= mode_number])
-    return dict((remove_projected_mode(ket), amplitude) for ket, amplitude in state_dict.items() if ket[mode_number] == target_photon_count)
-
-def projection_prob(w: np.ndarray, rank: int, degree: int, alpha: sp.Basic):
-    variables = make_variables(w.shape[1] - 1) # first column is for ancilla
-    ancilia = sp.symbols('a_0^\\dagger')
-    p = linear_forms_to_polynomial(w, variables, ancilia, alpha=alpha)
-    new_state_dict = polynomial_to_state(p)
-    new_state_dict = normalized_state(new_state_dict)
-    projected_state = project_state(new_state_dict, 0, (rank - 1) * degree)
-    p_success = state_norm(projected_state)**2
-    return p_success, projected_state
-
-def optimize_probability_by_scaling(p_success: sp.Expr, alpha: sp.Basic) -> tuple[complex, float]:
-    eval_p_success = sp.lambdify(alpha, p_success, modules='numpy')
-
-    def p_success_fn(alpha):
-        return -eval_p_success(alpha[0]+1j*alpha[1])
-
-    opt_result = opt.minimize(p_success_fn, x0=[+1.0, 0.0])
-    best_scaling = opt_result.x[0]+1j*opt_result.x[1]
-    best_prob = eval_p_success(best_scaling)
-    return best_scaling, best_prob
-
 
 def waring_preparation(
         target_state: StateDict,
@@ -190,7 +150,7 @@ def waring_preparation(
 
                 logger.debug('Optimizing success probability')
                 alpha = sp.Symbol('\\alpha')
-                p_success, final_state = projection_prob(np.asarray(W), rank, degree, alpha)
+                p_success, final_state = projection_prob(np.asarray(W), degree*(rank - 1), alpha)
                 s, p = optimize_probability_by_scaling(p_success, alpha)
                 final_state = normalized_state({k: v.subs({alpha: s}) for k, v in final_state.items()})
                 final_state_array = state_dict_to_array(final_state)

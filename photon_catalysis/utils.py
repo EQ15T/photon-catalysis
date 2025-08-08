@@ -24,6 +24,7 @@ import sympy as  sp
 import numpy as np
 import jax
 import jax.numpy as jnp
+import scipy.optimize as opt
 
 from functools import reduce
 from operator import mul
@@ -141,6 +142,71 @@ def state_to_tensor(state_dict: StateDict) -> jax.Array:
         for permutation_index in permutations:
             T[permutation_index] += coefficient * scale
     return jnp.array(T)
+
+
+def linear_forms_to_polynomial(
+        w: np.ndarray,
+        variables: list[sp.Symbol],
+        ancilia: sp.Symbol,
+        alpha=1) -> sp.Poly:
+    """
+    Converts matrix ``w`` rows of which represent linear forms to the polynomial in ``variables``, which is equal to
+    the product of these linear forms.
+
+    :param ancilia: Variable corresponding to the ancilla (must NOT be in the list of variables).
+    :param alpha: Additional scaling factor for non-ancilla variables.
+    :return: SymPy polynomial
+    """
+    p = 1
+    num_photon_additions = w.shape[0]
+    for i in range(num_photon_additions):
+        p *= sum(w[i, j] * variable * (alpha if j > 0 else 1) for j, variable in enumerate([ancilia] + list(variables)))
+    return sp.Poly(p, [ancilia] + list(variables))
+
+def project_state(
+    state_dict: StateDict,
+    mode_number: int,
+    target_photon_count: int) -> StateDict:
+    """
+    Calculates projection of the state onto ``mode_number`` having exactly ``target_photon_count`` photons
+
+    :param state_dict: State.
+    :param mode_number: Index of the ancillary mode.
+    :param target_photon_count: Target photon count.
+    :return: Conditioned state.
+    """
+    def remove_projected_mode(ket):
+        return tuple([m for i, m in enumerate(ket) if i!= mode_number])
+    return dict((remove_projected_mode(ket), amplitude) for ket, amplitude in state_dict.items() if ket[mode_number] == target_photon_count)
+
+def projection_prob(w: np.ndarray, target_photon_count: int, alpha: sp.Basic) -> tuple[float, StateDict]:
+    """
+    Calculates projections result and projcetion probability for the given linear forms matrix ``w``.
+
+    :param w: Matrix, rows of which define linear forms
+    :param target_photon_count: Target photon count.
+    :param alpha: Additional scaling factor for non-ancilla coefficients in the linear forms.
+    :return: Tuple ``(p, s)``, where ``p`` is the probability of success and ``s`` is the resulting state
+    """
+    variables = make_variables(w.shape[1] - 1) # first column is for ancilla
+    ancilia = sp.symbols('a_0^\\dagger')
+    p = linear_forms_to_polynomial(w, variables, ancilia, alpha=alpha)
+    new_state_dict = polynomial_to_state(p)
+    new_state_dict = normalized_state(new_state_dict)
+    projected_state = project_state(new_state_dict, 0, target_photon_count)
+    p_success = state_norm(projected_state)**2
+    return p_success, projected_state
+
+def optimize_probability_by_scaling(p_success: sp.Expr, alpha: sp.Basic) -> tuple[complex, float]:
+    eval_p_success = sp.lambdify(alpha, p_success, modules='numpy')
+
+    def p_success_fn(alpha):
+        return -eval_p_success(alpha[0]+1j*alpha[1])
+
+    opt_result = opt.minimize(p_success_fn, x0=[+1.0, 0.0])
+    best_scaling = opt_result.x[0]+1j*opt_result.x[1]
+    best_prob = eval_p_success(best_scaling)
+    return best_scaling, best_prob
 
 
 @jax.jit
