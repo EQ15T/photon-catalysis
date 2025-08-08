@@ -6,6 +6,8 @@ No heuristics are used in this case and we actually are able to provide a precis
 functions from SymPy. However, practically, for large number of modes it works much slower than using NumPy to get a
 solution numerically.
 """
+from typing import Union
+
 import numpy as np
 import sympy as sp
 
@@ -61,7 +63,7 @@ def get_e2_mat(n) -> sp.Matrix:
 
 
 
-def esp(k, xs, return_poly=True) -> sp.Expr | sp.Poly:
+def esp(k, xs, return_poly=True) -> Union[sp.Expr, sp.Poly]:
     """
     Returns SymPy polynomial representing elementary symmetric polynomial of degree k in variables xs
     :param return_poly: if True, casts expression to polynomial in suitable field extension
@@ -102,7 +104,7 @@ def mat_sqrt_np(A: np.ndarray) -> np.ndarray:
     return evectors * np.sqrt(evalues) @ np.linalg.inv(evectors)
 
 
-SymbolicOrNumeric = sp.Matrix | np.ndarray
+SymbolicOrNumeric = Union[sp.Matrix, np.ndarray]
 
 def solve_e2(B: SymbolicOrNumeric) -> SymbolicOrNumeric:
     """
