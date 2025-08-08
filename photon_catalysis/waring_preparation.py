@@ -147,6 +147,7 @@ def waring_preparation(
         num_decompositions: int=10,
         start_seed: int=0,
         num_iterations: int=10000,
+        num_rank_attempts: int=4,
         tolerance: float=1e-10,
         lr:float =0.01):
     """
@@ -159,6 +160,7 @@ def waring_preparation(
     :param num_decompositions: Number of trials (each uses different random seed derived from ``start_seed``).
     :param start_seed: Random seed.
     :param num_iterations: Number of steps of gradient descent.
+    :param num_rank_attempts: Number of attempts to find a decomposition of the specified rank.
     :param tolerance: When the error is smaller than ``tolerance``, consider it as a success.
     :param lr: Learning rate.
     """
@@ -195,7 +197,7 @@ def waring_preparation(
 
                 yield W, p, 1 - infidelity(final_state_array, target_state_array)
 
-            if attempt == 4 and not rank_found:
+            if attempt == num_rank_attempts and not rank_found:
                 logger.warning(f'Unable to find a decomposition of rank {rank}')
                 break
         if rank_found:
