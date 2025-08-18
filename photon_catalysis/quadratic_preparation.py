@@ -149,9 +149,9 @@ def e2_preparation(state: StateDict, symbolical: bool = False):
     W_np = np.asarray(W).astype(complex)
     logger.debug('Optimizing success probability')
     alpha = sp.Symbol('\\alpha')
-    p_success, final_state = projection_prob(W_np, W_np.shape[1] - 2, alpha)
+    p_success, final_state = projection_prob(W_np, W_np.shape[1] - 3, alpha)
     s, p = optimize_probability_by_scaling(p_success, alpha)
     final_state = normalized_state({k: v.subs({alpha: s}) for k, v in final_state.items()})
     final_state_array = state_dict_to_array(final_state)
 
-    return W, p, 1 - infidelity(final_state_array, state_dict_to_array(final_state))
+    return W, p, 1 - infidelity(final_state_array, state_dict_to_array(state))
