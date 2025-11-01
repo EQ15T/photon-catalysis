@@ -1,7 +1,12 @@
+import functools
 from os import PathLike
 from typing import Union
 from pathlib import Path
+import itertools
 
+import jax
+import jax.numpy as jnp
+import optax
 import sympy as sp
 import sympy.physics.quantum as sq
 
@@ -12,16 +17,6 @@ from photon_catalysis.utils import kets_to_state_dict, state_to_tensor
 
 def tensor_power(A, n):
     return sq.TensorProduct(*([A] * n))
-
-def make_e3_mat(M) -> sp.Matrix:
-    a = (sp.sympify(M - 2)**(1/sp.sympify(3)))
-    V = sp.Matrix([
-        [a] * M
-    ])
-    V = V.col_join(sp.Matrix.vstack(-sp.ones(M, M)))
-    for i in range(1, M + 1):
-        V[i, i - 1] *= -1
-    return V / 24**(sp.sympify(1) / 3)
 
 def esp(k, xs, return_poly=True) -> Union[sp.Expr, sp.Poly]:
     """
@@ -44,21 +39,39 @@ def esp(k, xs, return_poly=True) -> Union[sp.Expr, sp.Poly]:
         return r
     return sp.Poly(r.expand(), extension=True)
 
+def poly2sptensor(p: sp.Poly) -> sp.Matrix:
+    """
+    Convert a homogeneous polynomial to a symmetric tensor using polarization formula
+    :param p: Polynomial
+    :return: Tensor
+    """
+    M = len(p.gens)
+    d = p.total_degree()
+    res = sp.Matrix.zeros(1, M**d)
 
-def get_polysys3(M, N, target: np.ndarray) -> list[sp.Poly]:
+    for monomial, coefficient in p.terms():
+        indices = []
+        for i, count in enumerate(monomial):
+            indices.extend([i] * count)
+        permutations = list(itertools.permutations(indices))
+        scale = sp.sympify(1) / len(permutations)
+        for idx in permutations:
+            res[np.ravel_multi_index(idx, tuple([M]*d))] += coefficient * scale
+    return res
+
+
+def get_polysys(M, N, target: np.ndarray) -> list[sp.Poly]:
     """
     :param M: Number or target modes
     :param N: Number of intermediate modes
-    :param target: Target homogeneous polynomial
-    :return: List of polynomials of degree 3. Solving all of them simultaneously (as a system) corresponding to the solution
-    of decomposition e3(v1*x, ..., vN*x) = p(x1, ..., xM), where x=[x1, ..., xM] and vi = [vi1, ..., viM].
+    :param target: Target state tensor
+    :return: List of polynomials of degree d. Solving all of them simultaneously (as a system) corresponding to the solution
+    of decomposition ed(v1*x, ..., vN*x) = p(x1, ..., xM), where x=[x1, ..., xM] and vi = [vi1, ..., viM].
     """
-    U = make_e3_mat(N)
-    r = U.rows
-    e3 = sum([tensor_power(U.row(i), 3) for i in range(r)], sp.zeros(1, N**3))
-
+    d = len(target.shape)
+    ed = poly2sptensor(esp(d, sp.symbols(f'x1:{N+1}'), return_poly=True))
     ys = sp.Matrix(sp.symbols(f'x_1:{N + 1}'))
-    assert ((e3 * tensor_power(ys, 3))[0, 0] == esp(3, ys, False).expand().simplify())
+    assert ((ed * tensor_power(ys, d))[0, 0] == esp(d, ys, False).expand().simplify())
 
     vars = N * M
     vs = sp.symbols(f'v1:{vars + 1}')
@@ -71,19 +84,15 @@ def get_polysys3(M, N, target: np.ndarray) -> list[sp.Poly]:
         return r
 
     polys = []
-    for j1 in range(M):
-        for j2 in range(M):
-            for j3 in range(M):
-                s = 0
-                for i1 in range(N):
-                    for i2 in range(N):
-                        for i3 in range(N):
-                            c = e3 * sq.TensorProduct(get_ket(i1, N), get_ket(i2, N), get_ket(i3, N))
-                            c = c[0, 0]
-                            s += c * V[i1, j1] * V[i2, j2] * V[i3, j3]
-                # val = get_p_val((j1, j2, j3))
-                val = target[j1, j2, j3]
-                polys.append(sp.Poly(s - val, *vs, domain='QQ'))
+    for j in itertools.product(range(M), repeat=d):
+        s = 0
+        for i in itertools.product(range(N), repeat=d):
+            c = ed * sq.TensorProduct(*[get_ket(ii, N) for ii in i])
+            c = c[0, 0]
+            s += c * functools.reduce(lambda x, y: x*y, list(V[i[k], j[k]] for k in range(d)), 1)
+        val = target[j]
+        polys.append(sp.Poly(s - val, *vs, domain='QQ'))
+
     return polys
 
 
@@ -109,33 +118,40 @@ def polysys2mat(polysys: list[sp.Poly]) -> sp.Matrix:
         res[i, 0] = polysys[i].expr
     return res
 
-def polysys2func(polysys: list[sp.Poly]):
+def polysys2func(polysys: list[sp.Poly], modules):
     vars = list(polysys[0].gens)
-    return sp.lambdify(vars, polysys2mat(polysys), 'numpy')
+    return sp.lambdify([vars], polysys2mat(polysys), modules)
 
-def polysys2jac(polysys: list[sp.Poly]):
+def polysys2loss(polysys: list[sp.Poly]):
+    vars = list(polysys[0].gens)
+    f = polysys2mat(polysys)
+    n = (f.H * f)[0, 0]
+    return sp.lambdify([vars], n, [{'conjugate': jnp.conj}, 'jax'])
+
+def polysys2jac(polysys: list[sp.Poly], modules):
     vars = list(polysys[0].gens)
     mat = polysys2mat(polysys)
     J = sp.Matrix.zeros(len(polysys), len(vars))
     for r in range(len(polysys)):
         for c in range(len(vars)):
             J[r, c] = sp.diff(mat[r, 0], vars[c])
-    return sp.lambdify(vars, J, 'numpy')
+    return sp.lambdify([vars], J, modules)
 
-def optimize_3(N: int, target: np.ndarray) -> sp.Matrix:
+def optimize_newton(N: int, target: np.ndarray) -> sp.Matrix:
     M = target.shape[0]
-    polysys = get_polysys3(M, N, target)
+    d = len(target.shape)
+    polysys = get_polysys(M, N, target)
     vars = list(polysys[0].gens)
-    func = polysys2func(polysys)
-    jac = polysys2jac(polysys)
+    func = polysys2func(polysys, 'numpy')
+    jac = polysys2jac(polysys, 'numpy')
 
     x = None
     for s in range(100):
         x = np.random.randn(len(vars))
         n = None
         for i in range(500):
-            J = jac(*x)
-            f = np.squeeze(func(*x))
+            J = jac(x)
+            f = np.squeeze(func(x))
             r = np.linalg.pinv(J) @ f
             x = x - r
             n = np.linalg.norm(f)
@@ -145,10 +161,61 @@ def optimize_3(N: int, target: np.ndarray) -> sp.Matrix:
             print(f'Converged on iteration {s+1}')
             break
     print(x)
-    print(f'||f|| = {np.linalg.norm(func(*x)):.5f}')
+    print(f'||f|| = {np.linalg.norm(func(x)):.5f}')
     V = sp.Matrix(N, M, x)
     xs = sp.Matrix(V.cols, 1, sp.symbols(f'x1:{V.cols+1}'))
-    poly = esp(3, V * xs, True)
+    poly = esp(d, V * xs, True)
+    print(poly)
+    return V
+
+
+def optimize_jax(N: int, target: np.ndarray,
+             num_decompositions: int = 10,
+             start_seed: int = 0,
+             num_iterations: int = 10000,
+             lr: float = 0.01) -> sp.Matrix:
+    M = target.shape[0]
+    d = len(target.shape)
+    polysys = get_polysys(M, N, target)
+    vars = list(polysys[0].gens)
+
+    loss_fn_0 = polysys2loss(polysys)
+    optimizer = optax.adam(learning_rate=0.01)
+
+    @jax.jit
+    def loss_fn(x):
+        return jnp.real(loss_fn_0(x))
+
+    @jax.jit
+    def update_step(w, opt_state):
+        loss, grads = jax.value_and_grad(loss_fn)(w)
+        grads = jnp.conj(grads)
+        updates, opt_state = optimizer.update(grads, opt_state, w)
+        w = optax.apply_updates(w, updates)
+        return w, opt_state, loss
+
+    w = None
+    for seed_value in range(num_decompositions):
+        key = jax.random.PRNGKey(start_seed + seed_value)
+        key1, key2 = jax.random.split(key)
+        param_scale = 0.5
+
+        x = jax.random.normal(key1, (len(vars), )) * param_scale
+        y = jax.random.normal(key2, (len(vars),))*param_scale
+        w = x + 1.j*y
+
+        optimizer = optax.adam(learning_rate=lr)
+        opt_state = optimizer.init(w)
+
+        for it in range(num_iterations):
+            w, opt_state, loss_value = update_step(w, opt_state)
+
+    x = np.asarray(w)
+    print(x)
+    print(f'||f|| = {np.linalg.norm(polysys2func(polysys, "numpy")(x)):.5f}')
+    V = sp.Matrix(N, M, x)
+    xs = sp.Matrix(V.cols, 1, sp.symbols(f'x1:{V.cols+1}'))
+    poly = esp(d, V * xs, True)
     print(poly)
     return V
 
