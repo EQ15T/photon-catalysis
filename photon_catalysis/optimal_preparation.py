@@ -42,7 +42,8 @@ def optimal_preparation(
         num_decompositions: int=10,
         start_seed: int=0,
         num_iterations: int = 10000,
-        lr:float =0.01):
+        lr:float =0.01,
+        optimize_prob: bool = True):
     """
     Yields tuples of the form ``(W, p, f)``, where ``W`` is a matrix which rows define set of linear forms for the
     multiport interferometer. ``p`` is the probability of successfully conditioning on having ``extra_photons`` in the
@@ -107,18 +108,20 @@ def optimal_preparation(
                 if it % 100 == 0:
                     progress.set_postfix(loss=loss_value)
 
-        w = normalize_W(params)
-        scale = jax.random.normal(key1, ()) + 1.j * jax.random.normal(key2, ())
-        optimizer = optax.adam(learning_rate=lr)
-        opt_state = optimizer.init(scale)
-        with logging_redirect_tqdm():
-            progress = tqdm(range(num_iterations), desc='Optimizing probability...', leave=True)
-            for it in progress:
-                scale, opt_state, prob_value = update_prob_step(scale, w, opt_state)
-                if it % 100 == 0:
-                    progress.set_postfix(prob=-prob_value, scale=scale)
+        w = params
+        if optimize_prob:
+            w = normalize_W(w)
+            scale = jax.random.normal(key1, ()) + 1.j * jax.random.normal(key2, ())
+            optimizer = optax.adam(learning_rate=lr)
+            opt_state = optimizer.init(scale)
+            with logging_redirect_tqdm():
+                progress = tqdm(range(num_iterations), desc='Optimizing probability...', leave=True)
+                for it in progress:
+                    scale, opt_state, prob_value = update_prob_step(scale, w, opt_state)
+                    if it % 100 == 0:
+                        progress.set_postfix(prob=-prob_value, scale=scale)
+            w = normalize_W(w, complex(scale))
 
-        w = normalize_W(w, complex(scale))
         p = prob_fn(w, 1)
         f = 1 - loss_fn(w)
 
