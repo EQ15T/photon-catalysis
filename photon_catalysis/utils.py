@@ -224,32 +224,20 @@ def infidelity(x: jax.Array, y: jax.Array):
     return 1 - jnp.abs(jnp.sum(x * jnp.conj(y))) ** 2
 
 @jax.jit
-def W_to_stellar_tensor(w: jax.Array) -> jax.Array:
+def W_to_stellar_tensor(w: jax.Array, s: float = 1) -> jax.Array:
     """
     Compute the tensor corresponding to the stellar polynomial of L, i.e. of the product of linear forms.
     Note that this tensor does not contain factorial factors that emerge when going from stellar polynomial
     to the actual core state. To get these factors multiply by the renormalization tensor, i.e. by ``get_renorm_tensor()``
 
     :param w: The matrix W, where each row defines a linear form
+    :param s: Additional scaling factor for non-ancilla coefficients in the linear forms.
     :return: The tensor ("state tensor") corresponding to the product of linear forms
     """
-    p = w[0]
+    p = jnp.concat((w[0, 0:1], s * w[0, 1:]), axis=0)
     for v in w[1:]:
-        p = jnp.tensordot(p, v, axes=0)
+        p = jnp.tensordot(p, jnp.concat((v[0:1], s * v[1:]), axis=0), axes=0)
     return p
-
-@jax.jit
-def W_to_monic(w: jax.Array) -> jax.Array:
-    """
-    Rescales given linear forms such that their product represent a monic polynomial, without changing the norm
-
-    :param w: The matrix W, where each row defines a linear form
-    :return: Same W, except that the resulting polynomial is monic
-    """
-    r = w
-    for i in range(w.shape[0]):
-        r[i] = w[i] / w[i, 0]
-    return normalized_state_array(r)
 
 def get_renorm_tensor(num_modes: int, degree: int) -> tuple[jax.Array, jax.Array]:
     """
@@ -294,8 +282,8 @@ class StateOptimizationHelper:
 
     def get_prob_fn(self):
         @jax.jit
-        def compute_prob_success(w):
-            w_tensor = W_to_stellar_tensor(w) * self.renorm_tensor
+        def compute_prob_success(w, s=1):
+            w_tensor = W_to_stellar_tensor(w, s) * self.renorm_tensor
             _, p_success = normalized_state_array(self.conditioned_projector(w_tensor))
             _, p_success_scale = normalized_state_array(self.projector(w_tensor))
             return jnp.real(p_success / p_success_scale)
