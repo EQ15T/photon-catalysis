@@ -3,6 +3,8 @@ This module contains functions related to the state preparation using direct opt
 it corresponds to the solution of the decomposition in Theorem 2 in https://arxiv.org/abs/2507.19397, or, alternatively,
 it could be viewed as a generalization of Kopulov's method proposed in https://doi.org/10.1103/sv6z-v1gk.
 """
+from functools import partial
+
 import jax
 import numpy as np
 import optax
@@ -17,13 +19,31 @@ from photon_catalysis.utils import *
 
 logger = logging.getLogger(__name__)
 
+@partial(jax.jit, static_argnames='s')
+def normalize_W(w: jnp.ndarray, s: float = 0):
+    """
+    Renormalizes matrix defining linear forms without changing the fidelity with the target state
+
+    :param w: The matrix
+    :param s: If zero, renormalizes by dividing each row by its first element (corresponding to the ancilla).
+        Otherwise, multiplies every column except the first one by the scaling factor
+    :return: Renormalized matrix
+    """
+    return jnp.stack([
+        jnp.concat((v[0:1], s * v[1:]), axis=0)
+            if s != 0 else
+                v / v[0]
+        for v in w
+    ], axis=0)
+
 def optimal_preparation(
         target_state: StateDict,
         extra_photons: int = 1,
         num_decompositions: int=10,
         start_seed: int=0,
         num_iterations: int = 10000,
-        lr:float =0.01):
+        lr:float =0.01,
+        optimize_prob: bool = True):
     """
     Yields tuples of the form ``(W, p, f)``, where ``W`` is a matrix which rows define set of linear forms for the
     multiport interferometer. ``p`` is the probability of successfully conditioning on having ``extra_photons`` in the
@@ -48,12 +68,24 @@ def optimal_preparation(
     prob_fn = helper.get_prob_fn()
 
     @jax.jit
+    def prob_loss_fn(w, s):
+        return -prob_fn(w, s)
+
+    @jax.jit
     def update_step(params, opt_state):
         loss, grads = jax.value_and_grad(loss_fn)(params)
         grads = jnp.conj(grads)
         updates, opt_state = optimizer.update(grads, opt_state, params)
         params = optax.apply_updates(params, updates)
         return params, opt_state, loss
+
+    @jax.jit
+    def update_prob_step(scale, w, opt_state):
+        loss, grads = jax.value_and_grad(prob_loss_fn, argnums=1)(w, scale)
+        grads = jnp.conj(grads)
+        updates, opt_state = optimizer.update(grads, opt_state, scale)
+        scale = optax.apply_updates(scale, updates)
+        return scale, opt_state, loss
 
     for seed_value in range(num_decompositions):
         key = jax.random.PRNGKey(start_seed + seed_value)
@@ -70,14 +102,27 @@ def optimal_preparation(
         opt_state = optimizer.init(params)
 
         with logging_redirect_tqdm():
-            progress = tqdm(range(num_iterations), desc='Optimizing...', leave=True)
+            progress = tqdm(range(num_iterations), desc='Optimizing fidelity...', leave=True)
             for it in progress:
                 params, opt_state, loss_value = update_step(params, opt_state)
                 if it % 100 == 0:
                     progress.set_postfix(loss=loss_value)
 
         w = params
-        p = prob_fn(w)
+        if optimize_prob:
+            w = normalize_W(w)
+            scale = jax.random.normal(key1, ()) + 1.j * jax.random.normal(key2, ())
+            optimizer = optax.adam(learning_rate=lr)
+            opt_state = optimizer.init(scale)
+            with logging_redirect_tqdm():
+                progress = tqdm(range(num_iterations), desc='Optimizing probability...', leave=True)
+                for it in progress:
+                    scale, opt_state, prob_value = update_prob_step(scale, w, opt_state)
+                    if it % 100 == 0:
+                        progress.set_postfix(prob=-prob_value, scale=scale)
+            w = normalize_W(w, complex(scale))
+
+        p = prob_fn(w, 1)
         f = 1 - loss_fn(w)
 
         # to get the state after projection
