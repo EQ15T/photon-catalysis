@@ -1,0 +1,109 @@
+"""
+This module contains an abstract representation of the state preparation circuit, as a list
+of unitaries to be sandwiched with photon addition. This representation also contains all
+the side-information (number of modes, PNR number) to allow a conversion to an actual
+implementation (eg as boson sampling).
+"""
+
+import copy
+from typing import List
+
+import numpy as np
+
+from photon_catalysis.utils import StateDict, state_to_string
+
+
+class StatePreparationCircuit:
+    """
+    Abstract representation of a state preparation circuit
+    """
+
+    def __init__(self, w: np.array, state: StateDict):
+        num_target_photons = sum(list(state.items())[0][0])
+        unitaries = self._linear_forms_to_unitaries(np.asarray(w))
+
+        self._unitaries = [np.array(u.tolist()).astype(complex) for u in unitaries]
+        self._num_additions, self._num_modes = w.shape
+        self._num_target_photons = num_target_photons
+        self._pnr = self._num_additions - num_target_photons
+        self._name = state_to_string(state)
+        self._state = state
+
+    @property
+    def state(self) -> StateDict:
+        return self._state
+
+    @property
+    def unitaries(self) -> List[np.array]:
+        return self._unitaries
+
+    @property
+    def num_additions(self) -> int:
+        return self._num_additions
+
+    @property
+    def num_modes(self) -> int:
+        return self._num_modes
+
+    @property
+    def pnr(self) -> int:
+        return self._pnr
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @staticmethod
+    def _linear_forms_to_unitaries(w: np.ndarray) -> List[np.ndarray]:
+        """
+        Converts a list of linear form to a list of unitaries.
+        This implements algorithm 1 from Appendix C. https://arxiv.org/pdf/2507.19397
+        """
+        w = w.copy()
+        n, _ = w.shape
+        unitaries = []
+        for i in range(n):
+            # Find a unitary matrix whose first row corresponds to the linear form
+            u = StatePreparationCircuit._complete_unitary(w[i, :])
+            # Back-propagate the basis change to the previous linear forms
+            for j in range(i + 1, n):
+                w[j, :] = w[j, :] @ u.conj().T
+            unitaries.append(u)
+        return unitaries[::-1]
+
+    @staticmethod
+    def _complete_unitary(w: np.ndarray) -> np.ndarray:
+        """
+        Build a full unitary that transforms the first mode into the superposition
+        of modes described in w (normalized), acts unitarily on the other affected
+        modes, and trivially on the remaining modes.
+        This implements algorithm 2 from Appendix C. https://arxiv.org/pdf/2507.19397
+        """
+        n = len(w)
+
+        # Initialize the unitary
+        unitary = np.zeros((n, n), dtype=complex)
+
+        # Check in which rows we will have to add orthogonal elements
+        support = [i for i in range(n) if w[i] != 0]
+        n_s = len(support)
+
+        # Orthogonalize the non-trivial subspace
+        sub_u = np.eye(n_s, dtype=complex)
+        sub_u[0, :] = w[support]
+        q, _ = np.linalg.qr(sub_u.T)
+        sub_u = q.T
+
+        # Update the non-trivial subspace
+        affected_cols = support
+        affected_rows = [0] + support[1:]
+        unitary[np.ix_(affected_rows, affected_cols)] = sub_u
+
+        # Update the trivial subspace
+        trivial_space = np.setdiff1d(np.arange(1, n), support)
+        unitary[trivial_space, trivial_space] = 1
+
+        if 0 not in affected_cols:
+            unitary[support[0], 0] = 1
+
+        return unitary

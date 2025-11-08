@@ -17,22 +17,20 @@ In general, there are 5 ways utilized to represent core states:
 
     State tensor representation is used only when expanding the product of linear forms, i.e. after ``L_to_tensor``.
 """
+
 import copy
-
+import itertools
 import math
-import sympy as  sp
-import numpy as np
-import jax
-import jax.numpy as jnp
-import scipy.optimize as opt
-
 from functools import reduce
 from operator import mul
-import itertools
 
+import jax
+import jax.numpy as jnp
+import numpy as np
+import scipy.optimize as opt
+import sympy as sp
 
 StateDict = dict[tuple[int, ...], sp.Basic]
-
 
 
 def kets_to_state_dict(kets: list[tuple[int, ...]]) -> StateDict:
@@ -47,11 +45,13 @@ def kets_to_state_dict(kets: list[tuple[int, ...]]) -> StateDict:
     """
     return dict(zip(kets, [sp.sympify(1)] * len(kets)))
 
+
 def state_norm(state_dict: StateDict) -> sp.Basic:
     """
     :return: Norm of the state dict
     """
     return sp.sqrt(sum([abs(v) ** 2 for v in state_dict.values()], start=sp.sympify(0)))
+
 
 def normalized_state(state_dict: StateDict) -> StateDict:
     """
@@ -62,6 +62,7 @@ def normalized_state(state_dict: StateDict) -> StateDict:
     for k in state_dict.keys():
         ret[k] = state_dict[k] / p_sum
     return ret
+
 
 def state_dict_to_array(state_dict: StateDict) -> jax.Array:
     """
@@ -83,7 +84,8 @@ def state_dict_to_array(state_dict: StateDict) -> jax.Array:
         T[ket] = complex(amplitude)
     return jnp.array(T)
 
-def state_array_to_dict(state_array: jax.Array, cutoff: float=1e-5) -> StateDict:
+
+def state_array_to_dict(state_array: jax.Array, cutoff: float = 1e-5) -> StateDict:
     degree = state_array.shape[0] - 1
     num_modes = len(state_array.shape)
     ret = {}
@@ -94,23 +96,32 @@ def state_array_to_dict(state_array: jax.Array, cutoff: float=1e-5) -> StateDict
     return ret
 
 
-def state_to_string(state_dict: StateDict, cutoff: float=1e-4) -> str:
+def state_to_string(state_dict: StateDict, cutoff: float = 1e-4) -> str:
     """
     :param state_dict: Dictionary describing the state
     :param cutoff: If the coefficient is less than cutoff, it is not printed
     :return: String representation of the state
     """
-    def ket_str(ket: tuple[int], separator: str='') -> str:
+
+    def ket_str(ket: tuple[int], separator: str = "") -> str:
         s = separator.join(map(str, list(ket)))
-        return f'|{s}>'
+        return f"|{s}>"
+
     def cut(v):
         re = v.real if abs(v.real) > cutoff else 0
         im = v.imag if abs(v.imag) > cutoff else 0
         return re + 1j * im if im != 0 else re
-    return ' + '.join(f'({cut(complex(v)):.3f}){ ket_str(k) }' for k, v in state_dict.items() if abs(v) >= cutoff)
+
+    return " + ".join(
+        f"({cut(complex(v)):.3f}){ket_str(k)}"
+        for k, v in state_dict.items()
+        if abs(v) >= cutoff
+    )
+
 
 def make_variables(num_modes: int) -> list[sp.Symbol]:
     return sp.symbols(f"a^\\dagger_1:{num_modes + 1}")
+
 
 def polynomial_to_state(polynomial: sp.Poly) -> StateDict:
     state_dict = {}
@@ -119,15 +130,19 @@ def polynomial_to_state(polynomial: sp.Poly) -> StateDict:
         state_dict[term] = scale * coefficient
     return state_dict
 
-def state_to_polynomial(state_dict: dict[tuple[int], sp.Basic]) -> tuple[sp.Poly, list[sp.Symbol]]:
+
+def state_to_polynomial(
+    state_dict: dict[tuple[int], sp.Basic],
+) -> tuple[sp.Poly, list[sp.Symbol]]:
     num_modes = max(len(k) for k in state_dict.keys())
     variables = make_variables(num_modes)
     p = 0
     for ket, coefficient in state_dict.items():
-        monomial = reduce(mul, (variables[i]**k for i, k in enumerate(ket)))
+        monomial = reduce(mul, (variables[i] ** k for i, k in enumerate(ket)))
         scale = sp.sqrt(reduce(mul, [sp.factorial(k) for k in ket]))
         p += coefficient / scale * monomial
     return sp.Poly(p, extension=True), variables
+
 
 def state_to_tensor(state_dict: StateDict) -> jax.Array:
     num_modes = max(len(k) for k in state_dict.keys())
@@ -145,10 +160,8 @@ def state_to_tensor(state_dict: StateDict) -> jax.Array:
 
 
 def linear_forms_to_polynomial(
-        w: np.ndarray,
-        variables: list[sp.Symbol],
-        ancilia: sp.Symbol,
-        alpha=1) -> sp.Poly:
+    w: np.ndarray, variables: list[sp.Symbol], ancilia: sp.Symbol, alpha=1
+) -> sp.Poly:
     """
     Converts matrix ``w`` rows of which represent linear forms to the polynomial in ``variables``, which is equal to
     the product of these linear forms.
@@ -160,13 +173,16 @@ def linear_forms_to_polynomial(
     p = 1
     num_photon_additions = w.shape[0]
     for i in range(num_photon_additions):
-        p *= sum(w[i, j] * variable * (alpha if j > 0 else 1) for j, variable in enumerate([ancilia] + list(variables)))
+        p *= sum(
+            w[i, j] * variable * (alpha if j > 0 else 1)
+            for j, variable in enumerate([ancilia] + list(variables))
+        )
     return sp.Poly(p, [ancilia] + list(variables))
 
+
 def project_state(
-    state_dict: StateDict,
-    mode_number: int,
-    target_photon_count: int) -> StateDict:
+    state_dict: StateDict, mode_number: int, target_photon_count: int
+) -> StateDict:
     """
     Calculates projection of the state onto ``mode_number`` having exactly ``target_photon_count`` photons
 
@@ -175,11 +191,20 @@ def project_state(
     :param target_photon_count: Target photon count.
     :return: Conditioned state.
     """
-    def remove_projected_mode(ket):
-        return tuple([m for i, m in enumerate(ket) if i!= mode_number])
-    return dict((remove_projected_mode(ket), amplitude) for ket, amplitude in state_dict.items() if ket[mode_number] == target_photon_count)
 
-def projection_prob(w: np.ndarray, target_photon_count: int, alpha: sp.Basic) -> tuple[float, StateDict]:
+    def remove_projected_mode(ket):
+        return tuple([m for i, m in enumerate(ket) if i != mode_number])
+
+    return dict(
+        (remove_projected_mode(ket), amplitude)
+        for ket, amplitude in state_dict.items()
+        if ket[mode_number] == target_photon_count
+    )
+
+
+def projection_prob(
+    w: np.ndarray, target_photon_count: int, alpha: sp.Basic
+) -> tuple[float, StateDict]:
     """
     Calculates projections result and projcetion probability for the given linear forms matrix ``w``.
 
@@ -188,23 +213,26 @@ def projection_prob(w: np.ndarray, target_photon_count: int, alpha: sp.Basic) ->
     :param alpha: Additional scaling factor for non-ancilla coefficients in the linear forms.
     :return: Tuple ``(p, s)``, where ``p`` is the probability of success and ``s`` is the resulting state
     """
-    variables = make_variables(w.shape[1] - 1) # first column is for ancilla
-    ancilia = sp.symbols('a_0^\\dagger')
+    variables = make_variables(w.shape[1] - 1)  # first column is for ancilla
+    ancilia = sp.symbols("a_0^\\dagger")
     p = linear_forms_to_polynomial(w, variables, ancilia, alpha=alpha)
     new_state_dict = polynomial_to_state(p)
     new_state_dict = normalized_state(new_state_dict)
     projected_state = project_state(new_state_dict, 0, target_photon_count)
-    p_success = state_norm(projected_state)**2
+    p_success = state_norm(projected_state) ** 2
     return p_success, projected_state
 
-def optimize_probability_by_scaling(p_success: sp.Expr, alpha: sp.Basic) -> tuple[complex, float]:
-    eval_p_success = sp.lambdify(alpha, p_success, modules='numpy')
+
+def optimize_probability_by_scaling(
+    p_success: sp.Expr, alpha: sp.Basic
+) -> tuple[complex, float]:
+    eval_p_success = sp.lambdify(alpha, p_success, modules="numpy")
 
     def p_success_fn(alpha):
-        return -eval_p_success(alpha[0]+1j*alpha[1])
+        return -eval_p_success(alpha[0] + 1j * alpha[1])
 
     opt_result = opt.minimize(p_success_fn, x0=[+1.0, 0.0])
-    best_scaling = opt_result.x[0]+1j*opt_result.x[1]
+    best_scaling = opt_result.x[0] + 1j * opt_result.x[1]
     best_prob = eval_p_success(best_scaling)
     return best_scaling, best_prob
 
@@ -218,10 +246,12 @@ def normalized_state_array(s: jax.Array) -> tuple[jax.Array, jnp.complex64]:
     p = jnp.sum(s * s.conj())
     return s / jnp.sqrt(p), p
 
+
 @jax.jit
 def infidelity(x: jax.Array, y: jax.Array):
     """Returns the infidelity between two states represented as arrays"""
     return 1 - jnp.abs(jnp.sum(x * jnp.conj(y))) ** 2
+
 
 @jax.jit
 def W_to_stellar_tensor(w: jax.Array, s: float = 1) -> jax.Array:
@@ -239,6 +269,7 @@ def W_to_stellar_tensor(w: jax.Array, s: float = 1) -> jax.Array:
         p = jnp.tensordot(p, jnp.concat((v[0:1], s * v[1:]), axis=0), axes=0)
     return p
 
+
 def get_renorm_tensor(num_modes: int, degree: int) -> tuple[jax.Array, jax.Array]:
     """
     Computes renormalization tensor from stellar tensor (stellar polynomial) to state tensor.
@@ -248,10 +279,10 @@ def get_renorm_tensor(num_modes: int, degree: int) -> tuple[jax.Array, jax.Array
     :return: The tuple ``(T, I)``. ``T`` is The tensor that could be multiplied by a state tensor of
         a stellar polynomial to get the state tensor of the actual state. ``I`` is the list of indices for ``T``.
     """
-    renorm_tensor = np.zeros(tuple([num_modes]*degree), dtype=np.float32)
+    renorm_tensor = np.zeros(tuple([num_modes] * degree), dtype=np.float32)
     idx = list(itertools.product(range(num_modes), repeat=degree))
     for index in idx:
-        ket = [0]*(num_modes)
+        ket = [0] * (num_modes)
         for i in index:
             ket[i] += 1
         scale = np.sqrt(reduce(mul, [math.factorial(k) for k in ket]))
@@ -266,18 +297,21 @@ class StateOptimizationHelper:
         self.degree = self.target_state_array.shape[0] - 1
         self.num_modes = len(self.target_state_array.shape)
 
-        self.renorm_tensor, self.source_indices =\
-            get_renorm_tensor(self.num_modes + 1, self.degree + self.extra_photons) # +1 -- ancillary mode
+        self.renorm_tensor, self.source_indices = get_renorm_tensor(
+            self.num_modes + 1, self.degree + self.extra_photons
+        )  # +1 -- ancillary mode
 
         self.conditioned_projector = self._state_tensor_to_state_array(0)
         self.projector = self._state_tensor_to_state_array()
 
-
     def get_loss_fn(self):
         @jax.jit
         def loss_fn(w):
-            state_array, _ = normalized_state_array(self.conditioned_projector(W_to_stellar_tensor(w) * self.renorm_tensor))
+            state_array, _ = normalized_state_array(
+                self.conditioned_projector(W_to_stellar_tensor(w) * self.renorm_tensor)
+            )
             return jnp.real(infidelity(state_array, self.target_state_array))
+
         return loss_fn
 
     def get_prob_fn(self):
@@ -287,6 +321,7 @@ class StateOptimizationHelper:
             _, p_success = normalized_state_array(self.conditioned_projector(w_tensor))
             _, p_success_scale = normalized_state_array(self.projector(w_tensor))
             return jnp.real(p_success / p_success_scale)
+
         return compute_prob_success
 
     def _state_tensor_to_state_array(self, projection_mode_index=None):
@@ -307,9 +342,13 @@ class StateOptimizationHelper:
                 if projection_mode_index is not None:
                     # If the target mode has the target number of photon,
                     # keep in the projection, otherwise discard
-                    matches_projection = ket[projection_mode_index] == self.extra_photons
+                    matches_projection = (
+                        ket[projection_mode_index] == self.extra_photons
+                    )
                     ket = jnp.where(matches_projection, ket, jnp.zeros_like(ket))
-                    ket = jnp.concatenate([ket[:projection_mode_index], ket[projection_mode_index + 1:]])
+                    ket = jnp.concatenate(
+                        [ket[:projection_mode_index], ket[projection_mode_index + 1 :]]
+                    )
                     amplitude = jnp.where(matches_projection, T[tuple(index)], 0.0)
                 else:
                     amplitude = T[tuple(index)]
@@ -321,4 +360,3 @@ class StateOptimizationHelper:
             return T_state
 
         return project
-

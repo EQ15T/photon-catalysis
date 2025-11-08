@@ -23,6 +23,8 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE.md"]
 
+[project.optional-dependencies]
+boson_sampling = ["perceval-quandela", "matplotlib"]
 
 [project.urls]
 Homepage = "https://github.com/EQ15T/photon-catalysis"
