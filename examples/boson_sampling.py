@@ -22,21 +22,21 @@ except ImportError:
 
 from exqalibur import StateVector
 from perceval import Matrix
-from perceval.components import BS, PERM, Unitary
+from perceval.components import BS, PERM, PS, Unitary
 from perceval.utils.postselect import PostSelect
 
 
 def circuit_to_perceval_simulation(
     state_preparation: StatePreparationCircuit,
     photon_addition_r: float = 0.9,
-    simulation_backend: str = "SLOS",
+    decompose_unitary: bool = False,
 ) -> Tuple[pcvl.Circuit, pcvl.Simulator, pcvl.BasicState]:
     """
     Converts an abstract description of a state preparation circuit into a Perceval circuit
 
     :param state_preparation: A state preparation circuit object
     :photon_addition_r: The reflectivity of the beam-splitter performing photon addition
-    :simulation_backend: The Perceval simulation backend
+    :decompose_unitary: Whether the unitaries should be broken down into individual BS/PS
     """
     num_additions = state_preparation.num_additions
     unitaries = state_preparation.unitaries
@@ -61,7 +61,13 @@ def circuit_to_perceval_simulation(
             circuit //= PERM(permutation)
 
         m = Matrix(unitaries[i]).T
-        circuit //= (num_additions, Unitary(m))
+        if decompose_unitary:
+            unitary_subcircuit = pcvl.Circuit.decomposition(
+                m, BS(theta=pcvl.P("theta"), phi_tr=pcvl.P("phi")), phase_shifter_fn=PS
+            )
+        else:
+            unitary_subcircuit = Unitary(m)
+        circuit //= (num_additions, unitary_subcircuit)
 
     # The single photons are initially in the addition anciliary
     # modes (Figure 2 of the paper)
@@ -77,6 +83,13 @@ def circuit_to_perceval_simulation(
     simulation = pcvl.Simulator(pcvl.SLOSBackend())
     simulation.set_circuit(circuit)
     simulation.set_postselection(post_select)
+
+    # from perceval.rendering import Format
+    # p = pcvl.Processor("SLOS", circuit)
+    # p.with_input(input_state)
+    # p.set_postselection(post_select)
+    # pcvl.pdisplay_to_file(p, "circuit.pdf", output_format=Format.MPLOT, recursive=True)
+
     return circuit, simulation, input_state
 
 
