@@ -17,7 +17,7 @@ pip install -e git+https://github.com/EQ15T/photon-catalysis.git#egg=photon_cata
 For development:
 ```shell
 git clone https://github.com/EQ15T/photon-catalysis.git
-cd optical_qrc
+cd photon-catalysis
 pip install -e .
 ```
 
