@@ -233,14 +233,16 @@ expected_extra_photons = {
 
 
 def boson_sampling_state_preparation(
-    state: StateDict, name: str, num_catalysis_photons: int
+    state: StateDict, name: str, num_catalysis_photons: int,
+    num_decompositions: int = 5
 ):
     # Find the optimal preparation
     state = normalized_state(state)
-    w, _, _ = next(
+    w, _, _ = max(
         optimal_preparation(
-            state, extra_photons=num_catalysis_photons, num_decompositions=1
-        )
+            state, extra_photons=num_catalysis_photons, num_decompositions=num_decompositions
+        ),
+        key=lambda t: abs(t[1]),
     )
     circuit = StatePreparationCircuit(w, state)
 
