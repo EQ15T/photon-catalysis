@@ -1,7 +1,18 @@
+"""
+This scripts converts an optimal state preparation circuit into a boson sampling
+scheme employing beam-splitter and single-photon sources to implement photon
+addition. The scheme is simulated with Perceval, to retrieve probability of
+success and fidelity. Running this script will create a results directory
+with a fidelity/probability success plot for each state, and a global
+all_states.csv file storing the generated data.
+"""
+
+import os
 from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 from photon_catalysis.optimal_preparation import optimal_preparation
 from photon_catalysis.state_preparation_circuit import StatePreparationCircuit
@@ -25,11 +36,13 @@ from perceval import Matrix
 from perceval.components import BS, PERM, PS, Unitary
 from perceval.utils.postselect import PostSelect
 
+RESULTS_DIR = "results"
+
 
 def circuit_to_perceval_simulation(
     state_preparation: StatePreparationCircuit,
     photon_addition_r: float = 0.9,
-    decompose_unitary: bool = False,
+    decompose_unitary: bool = True,
 ) -> Tuple[pcvl.Circuit, pcvl.Simulator, pcvl.BasicState]:
     """
     Converts an abstract description of a state preparation circuit into a Perceval circuit
@@ -54,7 +67,7 @@ def circuit_to_perceval_simulation(
 
         # Shuffle the photon addition modes
         if i != num_additions - 1:
-            permutation = list(range(num_total_modes))
+            permutation = list(range(num_additions))
             swap = (num_additions - 1, num_additions - 2 - i)
             permutation[swap[0]] = swap[1]
             permutation[swap[1]] = swap[0]
@@ -83,13 +96,6 @@ def circuit_to_perceval_simulation(
     simulation = pcvl.Simulator(pcvl.SLOSBackend())
     simulation.set_circuit(circuit)
     simulation.set_postselection(post_select)
-
-    # from perceval.rendering import Format
-    # p = pcvl.Processor("SLOS", circuit)
-    # p.with_input(input_state)
-    # p.set_postselection(post_select)
-    # pcvl.pdisplay_to_file(p, "circuit.pdf", output_format=Format.MPLOT, recursive=True)
-
     return circuit, simulation, input_state
 
 
@@ -113,7 +119,7 @@ def simulate_with_perceval(
     of success and fidelity
     """
     pcvl_circuit, simulation, input_state = circuit_to_perceval_simulation(
-        circuit, photon_addition_r=addition_r
+        circuit, photon_addition_r=addition_r, decompose_unitary=False
     )
     final_state = simulation.evolve(input_state)
     f = fidelity(circuit.state, final_state)
@@ -121,7 +127,12 @@ def simulate_with_perceval(
     return f, p_success
 
 
-def plot_results(r_values, results, state):
+def plot_results(
+    r_values: np.ndarray, results: np.ndarray, state: StateDict, output_file: str
+):
+    """
+    Plot the reflectivity/fidelity/probability of success curves
+    """
     fig, axs = plt.subplots(1, 2, figsize=(8, 4))
     ax1 = axs[0]
     (l1,) = ax1.plot(r_values, results[:, 0], color="C0", label="Fidelity")
@@ -140,23 +151,133 @@ def plot_results(r_values, results, state):
 
     fig.suptitle(f"Preparation of {state_to_string(state)}")
     fig.tight_layout()
-    plt.show()
+    plt.savefig(output_file)
 
 
-def main():
-    # state = normalized_state(kets_to_state_dict([(2, 0, 0), (0, 2, 0), (0, 0, 2)]))
-    # state = normalized_state(kets_to_state_dict([(3, 0, 0), (0, 3, 0), (0, 0, 3)]))
-    state = normalized_state(kets_to_state_dict([(2, 1, 0), (0, 2, 1)]))
-    w, _, _ = next(optimal_preparation(state, extra_photons=1, num_decompositions=1))
+def render_circuit(
+    circuit: StatePreparationCircuit,
+    addition_r: float = 0.9,
+    output_file: str = "circuit.pdf",
+):
+    """
+    Saves a graphical representation of the circuit
+    """
+    pcvl_circuit, _, input_state = circuit_to_perceval_simulation(
+        circuit, photon_addition_r=addition_r, decompose_unitary=True
+    )
+
+    from perceval.rendering import Format
+    from perceval.rendering.circuit import SymbSkin
+
+    p = pcvl.Processor("SLOS", pcvl_circuit)
+    p.with_input(input_state)
+    symbolic_skin = SymbSkin(compact_display=True)
+    pcvl.pdisplay_to_file(
+        p, output_file, output_format=Format.MPLOT, recursive=True, skin=symbolic_skin
+    )
+
+
+all_states = {
+    "psi_1": kets_to_state_dict([(2, 0, 0), (0, 2, 0), (0, 0, 2)]),
+    "psi_2": kets_to_state_dict([(3, 0, 0), (0, 3, 0), (0, 0, 3)]),
+    "psi_3": kets_to_state_dict([(4, 0, 0), (0, 4, 0), (0, 0, 4)]),
+    "psi_4": kets_to_state_dict(
+        [(2, 0, 0, 0), (0, 2, 0, 0), (0, 0, 2, 0), (0, 0, 0, 2)]
+    ),
+    "psi_5": kets_to_state_dict(
+        [(0, 1, 2), (1, 2, 0), (2, 0, 1), (0, 2, 1), (1, 0, 2), (2, 1, 0)]
+    ),
+    "psi_6": kets_to_state_dict([(1, 1, 0), (1, 0, 1), (0, 1, 1)]),
+    "psi_7": kets_to_state_dict([(2, 2, 0), (2, 0, 2), (0, 2, 2)]),
+    "psi_8": kets_to_state_dict([(2, 0, 0, 0), (0, 1, 1, 0), (0, 0, 0, 2)]),
+    "psi_9": kets_to_state_dict(
+        [(3, 0, 0, 0), (0, 2, 1, 0), (0, 1, 2, 0), (0, 0, 0, 3)]
+    ),
+    "psi_10": kets_to_state_dict([(0, 4, 0), (1, 2, 1), (2, 0, 2)]),
+    "R4": kets_to_state_dict([(3, 0, 0), (0, 3, 0), (0, 0, 3), (1, 1, 1)]),
+    "R5": kets_to_state_dict([(2, 1, 0), (0, 2, 1)]),
+    "R2": {
+        (3, 0, 0): np.sqrt(13) / 13,
+        (1, 2, 0): np.sqrt(39) / 13,
+        (1, 1, 1): np.sqrt(78) / 13,
+        (1, 0, 2): np.sqrt(39) / 13,
+    },
+    "K3": {
+        (3, 0, 0, 0): 1,
+        (2, 1, 0, 0): 1,
+        (2, 0, 1, 0): 1,
+        (2, 0, 0, 1): 1,
+        (1, 1, 1, 0): -1,
+        (1, 1, 0, 1): -1,
+        (1, 0, 1, 1): -1,
+        (0, 1, 1, 1): -1,
+    },
+}
+
+expected_extra_photons = {
+    "psi_1": 1,
+    "psi_2": 1,
+    "psi_3": 2,
+    "psi_4": 2,
+    "psi_5": 1,
+    "psi_6": 1,
+    "psi_7": 1,
+    "psi_8": 2,
+    "psi_9": 2,
+    "psi_10": 2,
+    "R4": 1,
+    "R5": 1,
+    "R2": 1,
+    "K3": 2,
+}
+
+
+def boson_sampling_state_preparation(
+    state: StateDict, name: str, num_catalysis_photons: int
+):
+    # Find the optimal preparation
+    state = normalized_state(state)
+    w, _, _ = next(
+        optimal_preparation(
+            state, extra_photons=num_catalysis_photons, num_decompositions=1
+        )
+    )
     circuit = StatePreparationCircuit(w, state)
 
-    num_r_values = 20
-    r_values = 1 - 0.5 * 10 ** np.linspace(0, -1.5, num_r_values)
+    # Prepare the probability/fidelity plot
+    num_r_values = 10
+    t_values = (np.linspace(0.5, 0.05, num_r_values)) ** 0.5
+    r_values = (1 - t_values**2) ** 0.5
     results = np.zeros((num_r_values, 2))
     for i in range(num_r_values):
         results[i, :] = simulate_with_perceval(circuit, addition_r=r_values[i])
 
-    plot_results(r_values, results, state)
+    render_circuit(
+        circuit, addition_r=0.9, output_file=f"{RESULTS_DIR}/{name}_circuit.pdf"
+    )
+    plot_results(r_values, results, state, f"{RESULTS_DIR}/{name}_prob_plot.pdf")
+
+    return [
+        {
+            "name": name,
+            "r": r_values[i],
+            "fidelity": results[i, 0],
+            "probability": results[i, 1],
+        }
+        for i in range(num_r_values)
+    ]
+
+
+def main():
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    results = []
+    for name, state_dict in list(all_states.items()):
+        num_catalysis_photons = expected_extra_photons[name]
+        results += boson_sampling_state_preparation(
+            state_dict, name, num_catalysis_photons
+        )
+    df = pd.DataFrame(results)
+    df.to_csv(os.path.join(RESULTS_DIR, "all_states.csv"), index=False)
 
 
 if __name__ == "__main__":
