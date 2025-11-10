@@ -72,17 +72,30 @@ class StatePreparationCircuit:
         return unitaries[::-1]
 
     @staticmethod
-    def _complete_unitary(w: np.ndarray) -> np.ndarray:
+    def _complete_unitary(w: np.ndarray, keep_sparse: bool = False) -> np.ndarray:
         """
         Build a full unitary that transforms the first mode into the superposition
         of modes described in w (normalized), acts unitarily on the other affected
         modes, and trivially on the remaining modes.
+
+        :param w: linear combination of modes the first mode is transformed into
+        :param keep_sparse: if True, the orthogonalization will preserve the block
+           structure of the matrix and will only act on the modes in the support of w
+
         This implements algorithm 2 from Appendix C. https://arxiv.org/pdf/2507.19397
         """
         n = len(w)
 
         # Initialize the unitary
         unitary = np.zeros((n, n), dtype=complex)
+        if not keep_sparse:
+            # If we don't care about producing a non-sparse unitary, or if
+            # w is not sparse anyway, we can just orthogonalize the full
+            # matrix instead of just orthogonalizeing the non-trivial
+            # subspace
+            unitary[0, :] = w
+            q, _ = np.linalg.qr(unitary.T)
+            return q.T
 
         # Check in which rows we will have to add orthogonal elements
         support = [i for i in range(n) if w[i] != 0]
