@@ -90,6 +90,7 @@ def maintable2dataframe(table: list[MainTableRecord]) -> pd.DataFrame:
 
 
 def median(vs):
+    vs = sorted(vs)
     if len(vs) % 2 == 0:
         return ( vs[len(vs) // 2] + vs[len(vs) // 2 - 1] ) / 2
     else:
