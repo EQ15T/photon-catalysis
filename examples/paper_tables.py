@@ -3,10 +3,11 @@ from photon_catalysis.utils import kets_to_state_dict
 from photon_catalysis.optimal_preparation import optimal_preparation
 from photon_catalysis.waring_preparation import waring_preparation
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict as dataclass_asdict
+import pandas as pd
 
-import logging
-import os
+from pathlib import Path
+from argparse import ArgumentParser
 
 all_states = {
     'psi_1': kets_to_state_dict([(2, 0, 0), (0, 2, 0), (0, 0, 2)]),
@@ -84,6 +85,9 @@ def print_to_latex(table: list[MainTableRecord]):
               f' & {r.waring.add} & {r.waring.pnr} & {r.waring.p_min:.2f} & {r.waring.p_med:.2f} & {r.waring.p_max:.2f} & {r.waring.F:.2f}'
               f' & {r.esp.add} & {r.esp.pnr} & {r.esp.p_min:.2f} & {r.esp.p_med:.2f} & {r.esp.p_max:.2f} & {r.esp.F:.2f}')
 
+def maintable2dataframe(table: list[MainTableRecord]) -> pd.DataFrame:
+    return pd.json_normalize([dataclass_asdict(r) for r in table])
+
 
 def median(vs):
     if len(vs) % 2 == 0:
@@ -91,7 +95,7 @@ def median(vs):
     else:
         return vs[len(vs) // 2]
 
-def main_table(num_decompositions=25) -> list[MainTableRecord]:
+def main_table(num_decompositions=1) -> list[MainTableRecord]:
     res = []
 
     for state_name, state in all_states.items():
@@ -135,11 +139,17 @@ def main_table(num_decompositions=25) -> list[MainTableRecord]:
             esp = MainTableMethodRecord(add=esp_rank, pnr=esp_rank - d, p_min=min(esp_ps), p_med=median(esp_ps), p_max=max(esp_ps), F=esp_mx_fid)
         ))
 
-        break
-
     return res
 
 
+def main():
+    parser = ArgumentParser()
+    parser.add_argument('-n', '--num_decompositions', type=int, default=25, help='Number of decompositions')
+    parser.add_argument('-o', '--output', type=Path, default=Path('main_table.csv'), help='Output file')
+    args = parser.parse_args()
+    df = maintable2dataframe(main_table(args.num_decompositions))
+    df.to_csv(args.output, index=False)
+
 
 if __name__ == '__main__':
-    print_to_latex(main_table())
+    main()
