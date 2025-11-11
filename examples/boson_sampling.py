@@ -10,6 +10,7 @@ all_states.csv file storing the generated data.
 import os
 from typing import Tuple
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -233,7 +234,11 @@ expected_extra_photons = {
 
 
 def boson_sampling_state_preparation(
-    state: StateDict, name: str, num_catalysis_photons: int, num_decompositions: int = 5
+    state: StateDict,
+    name: str,
+    num_catalysis_photons: int,
+    num_decompositions: int = 5,
+    save_plots: bool = True,
 ):
     # Find the optimal preparation
     state = normalized_state(state)
@@ -255,10 +260,11 @@ def boson_sampling_state_preparation(
     for i in range(num_r_values):
         results[i, :] = simulate_with_perceval(circuit, addition_r=r_values[i])
 
-    render_circuit(
-        circuit, addition_r=0.9, output_file=f"{RESULTS_DIR}/{name}_circuit.pdf"
-    )
-    plot_results(r_values, results, state, f"{RESULTS_DIR}/{name}_prob_plot.pdf")
+    if save_plots:
+        render_circuit(
+            circuit, addition_r=0.9, output_file=f"{RESULTS_DIR}/{name}_circuit.pdf"
+        )
+        plot_results(r_values, results, state, f"{RESULTS_DIR}/{name}_prob_plot.pdf")
 
     return [
         {
@@ -271,7 +277,7 @@ def boson_sampling_state_preparation(
     ]
 
 
-def main():
+def plot_all_states():
     os.makedirs(RESULTS_DIR, exist_ok=True)
     results = []
     for name, state_dict in all_states.items():
@@ -283,5 +289,71 @@ def main():
     df.to_csv(os.path.join(RESULTS_DIR, "all_states.csv"), index=False)
 
 
+def plot_comparison_for_paper():
+    results_file = os.path.join(RESULTS_DIR, "selected_states.csv")
+
+    force_run = False
+
+    if force_run or not os.path.exists(results_file):
+        candidates = ["psi_1", "psi_2", "psi_8", "psi_10", "psi_10 N=5"]
+        expected_extra_photons["psi_10 N=5"] = 1
+        all_states["psi_10 N=5"] = all_states["psi_10"]
+        results = []
+        for name in candidates:
+            num_catalysis_photons = expected_extra_photons[name]
+            results += boson_sampling_state_preparation(
+                all_states[name], name, num_catalysis_photons, save_plots=False
+            )
+        df = pd.DataFrame(results)
+        df.to_csv(results_file, index=False)
+
+    def texify_name(s):
+        tail = ""
+        if " " in s:
+            tokens = s.split(" ")
+            head = tokens[0]
+            tail = " " + " ".join(tokens[1:])
+        else:
+            head = s
+        head = head.replace("psi", "\\Psi")
+        if "_" in head:
+            head = "_".join(f"{{ {k} }}" for k in head.split("_"))
+        return f"$|{head}\\rangle$" + tail
+
+    df = pd.read_csv(results_file)
+
+    matplotlib.use("pgf")
+    matplotlib.rcParams.update(
+        {
+            "pgf.texsystem": "pdflatex",
+            "font.family": "serif",
+            "font.serif": [],
+            "text.usetex": True,
+            "pgf.rcfonts": False,
+        }
+    )
+
+    fig, axs = plt.subplots(figsize=(4, 3.5))
+    for name, d in df.groupby("name", sort=False):
+        plt.loglog(
+            1 - d["fidelity"].values,
+            d["probability"],
+            marker="*",
+            label=texify_name(name),
+        )
+
+    plt.grid(visible=True)
+    plt.xlabel("Distance to target state $1 - F$")
+    plt.axvline(
+        x=0.01, color="black", linestyle=":", linewidth=1.5, label="99\\% Fidelity"
+    )
+    plt.ylabel("Probability of success")
+    plt.legend(loc="lower center", ncols=3, bbox_to_anchor=(0.5, 1.05), borderaxespad=0)
+    plt.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, "selected_states.pgf"))
+    # plt.show()
+
+
 if __name__ == "__main__":
-    main()
+    # plot_all_states()
+    plot_comparison_for_paper()
