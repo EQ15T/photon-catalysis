@@ -19,23 +19,6 @@ from photon_catalysis.utils import *
 
 logger = logging.getLogger(__name__)
 
-@partial(jax.jit, static_argnames='s')
-def normalize_W(w: jnp.ndarray, s: float = 0):
-    """
-    Renormalizes matrix defining linear forms without changing the fidelity with the target state
-
-    :param w: The matrix
-    :param s: If zero, renormalizes by dividing each row by its first element (corresponding to the ancilla).
-        Otherwise, multiplies every column except the first one by the scaling factor
-    :return: Renormalized matrix
-    """
-    return jnp.stack([
-        jnp.concat((v[0:1], s * v[1:]), axis=0)
-            if s != 0 else
-                v / v[0]
-        for v in w
-    ], axis=0)
-
 def optimal_preparation(
         target_state: StateDict,
         extra_photons: int = 1,
