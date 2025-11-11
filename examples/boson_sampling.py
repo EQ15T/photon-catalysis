@@ -307,20 +307,14 @@ def plot_comparison_for_paper():
         df = pd.DataFrame(results)
         df.to_csv(results_file, index=False)
 
-    def texify_name(s):
-        tail = ""
-        if " " in s:
-            tokens = s.split(" ")
-            head = tokens[0]
-            tail = " " + " ".join(tokens[1:])
-        else:
-            head = s
-        head = head.replace("psi", "\\Psi")
-        if "_" in head:
-            head = "_".join(f"{{ {k} }}" for k in head.split("_"))
-        return f"$|{head}\\rangle$" + tail
-
     df = pd.read_csv(results_file)
+    tex_labels = {
+        "psi_1": "$|\\Psi\\rangle_1$",
+        "psi_2": "$|\\Psi\\rangle_2$",
+        "psi_8": "$|\\Psi\\rangle_8$",
+        "psi_10": "$|\\Psi\\rangle_{10}$",
+        "psi_10 N=5": "$|\\Psi\\rangle_{10}$ N=5",
+    }
 
     matplotlib.use("pgf")
     matplotlib.rcParams.update(
@@ -339,9 +333,8 @@ def plot_comparison_for_paper():
             1 - d["fidelity"].values,
             d["probability"],
             marker="*",
-            label=texify_name(name),
+            label=tex_labels[name],
         )
-
     plt.grid(visible=True)
     plt.xlabel("Distance to target state $1 - F$")
     plt.axvline(
