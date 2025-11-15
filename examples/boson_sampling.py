@@ -40,65 +40,6 @@ from perceval.utils.postselect import PostSelect
 RESULTS_DIR = "results"
 
 
-def circuit_to_perceval_simulation(
-    state_preparation: StatePreparationCircuit,
-    photon_addition_r: float = 0.9,
-    decompose_unitary: bool = True,
-) -> Tuple[pcvl.Circuit, pcvl.Simulator, pcvl.BasicState]:
-    """
-    Converts an abstract description of a state preparation circuit into a Perceval circuit
-
-    :param state_preparation: A state preparation circuit object
-    :photon_addition_r: The reflectivity of the beam-splitter performing photon addition
-    :decompose_unitary: Whether the unitaries should be broken down into individual BS/PS
-    """
-    num_additions = state_preparation.num_additions
-    unitaries = state_preparation.unitaries
-    num_modes = state_preparation.num_modes
-    pnr = state_preparation.pnr
-
-    num_total_modes = num_modes + num_additions
-
-    circuit = pcvl.Circuit(m=num_total_modes, name=state_preparation.name)
-
-    for i in range(num_additions):
-        # Photon addition with a beam-splitter
-        bs = BS(BS.r_to_theta(photon_addition_r))
-        circuit //= (num_additions - 1, bs)
-
-        # Shuffle the photon addition modes
-        if i != num_additions - 1:
-            permutation = list(range(num_additions))
-            swap = (num_additions - 1, num_additions - 2 - i)
-            permutation[swap[0]] = swap[1]
-            permutation[swap[1]] = swap[0]
-            circuit //= PERM(permutation)
-
-        m = Matrix(unitaries[i]).T
-        if decompose_unitary:
-            unitary_subcircuit = pcvl.Circuit.decomposition(
-                m, BS(theta=pcvl.P("theta"), phi_tr=pcvl.P("phi")), phase_shifter_fn=PS
-            )
-        else:
-            unitary_subcircuit = Unitary(m)
-        circuit //= (num_additions, unitary_subcircuit)
-
-    # The single photons are initially in the addition anciliary
-    # modes (Figure 2 of the paper)
-    input_state = pcvl.BasicState([1] * num_additions + [0] * num_modes)
-
-    # Create a post-selection rule that checks that there are no
-    # photons on the photon addition ancilia modes, and that
-    # all catalysis photons are retrieved
-    post_select = PostSelect("&".join(f"[{i}] == 0" for i in range(num_additions)))
-    if pnr:
-        post_select.merge(PostSelect(f"[{num_additions}] == {pnr}"))
-
-    simulation = pcvl.Simulator(pcvl.SLOSBackend())
-    simulation.set_circuit(circuit)
-    simulation.set_postselection(post_select)
-    return circuit, simulation, input_state
-
 
 def fidelity(x: StateDict, y: StateVector) -> float:
     """
@@ -119,9 +60,13 @@ def simulate_with_perceval(
     Runs a full state vector simulation with Perceval and outputs probability
     of success and fidelity
     """
-    pcvl_circuit, simulation, input_state = circuit_to_perceval_simulation(
-        circuit, photon_addition_r=addition_r, decompose_unitary=False
+    pcvl_circuit, input_state, post_select = circuit.to_parceval(
+        photon_addition_r=addition_r, decompose_unitary=False
     )
+    simulation = pcvl.Simulator(pcvl.SLOSBackend())
+    simulation.set_circuit(pcvl_circuit)
+    simulation.set_postselection(post_select)
+
     final_state = simulation.evolve(input_state)
     f = fidelity(circuit.state, final_state)
     p_success = simulation.logical_perf
@@ -163,8 +108,8 @@ def render_circuit(
     """
     Saves a graphical representation of the circuit
     """
-    pcvl_circuit, _, input_state = circuit_to_perceval_simulation(
-        circuit, photon_addition_r=addition_r, decompose_unitary=True
+    pcvl_circuit, input_state, _ = circuit.to_parceval(
+        photon_addition_r=addition_r, decompose_unitary=True
     )
 
     from perceval.rendering import Format

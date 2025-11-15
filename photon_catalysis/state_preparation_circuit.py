@@ -120,3 +120,56 @@ class StatePreparationCircuit:
             unitary[support[0], 0] = 1
 
         return unitary
+
+    def to_parceval(self, photon_addition_r: float = 0.9, decompose_unitary: bool = True):
+        """
+        :param photon_addition_r: The reflectivity of the beam-splitter performing photon addition
+        :param decompose_unitary: Whether the unitaries should be broken down into individual BS/PS
+        :return: Tuple (circuit: Circuit, input_state: BasicState, post_select: PostSelect) for Parceval library
+        """
+        import perceval as pcvl
+        from perceval import Matrix
+        from perceval.components import BS, PERM, PS, Unitary
+        from perceval.utils.postselect import PostSelect
+
+        num_additions = self.num_additions
+        unitaries = self.unitaries
+        num_modes = self.num_modes
+        pnr = self.pnr
+
+        num_total_modes = num_modes + num_additions
+
+        circuit = pcvl.Circuit(m=num_total_modes, name=self.name)
+
+        for i in range(num_additions):
+            # Photon addition with a beam-splitter
+            bs = BS(BS.r_to_theta(photon_addition_r))
+            circuit //= (num_additions-1, bs)
+
+            # Shuffle the photon addition modes
+            if i != num_additions-1:
+                permutation = list(range(num_additions))
+                swap = (num_additions-1, num_additions-2-i)
+                permutation[swap[0]] = swap[1]
+                permutation[swap[1]] = swap[0]
+                circuit //= PERM(permutation)
+
+            m = Matrix(unitaries[i]).T
+            if decompose_unitary:
+                unitary_subcircuit = pcvl.Circuit.decomposition(m, BS(theta=pcvl.P("theta"), phi_tr=pcvl.P("phi")),
+                    phase_shifter_fn=PS)
+            else:
+                unitary_subcircuit = Unitary(m)
+            circuit //= (num_additions, unitary_subcircuit)
+
+        # The single photons are initially in the addition anciliary
+        # modes (Figure 2 of the paper)
+        input_state = pcvl.BasicState([1]*num_additions+[0]*num_modes)
+
+        # Create a post-selection rule that checks that there are no
+        # photons on the photon addition ancilia modes, and that
+        # all catalysis photons are retrieved
+        post_select = PostSelect("&".join(f"[{i}] == 0" for i in range(num_additions)))
+        post_select.merge(PostSelect(f"[{num_additions}] == {pnr}"))
+
+        return circuit, input_state, post_select
