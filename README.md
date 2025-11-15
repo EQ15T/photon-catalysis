@@ -32,6 +32,8 @@ Or:
 pip install -e .[boson_sampling]
 ```
 
+---
+
 ## Examples
 
 ### Basic usage
@@ -54,9 +56,24 @@ for W, prob, fid in optimal_preparation(state, extra_photons, num_decompositions
 Rows of `W` define the linear forms, `extra_photons` is the number of catalysis photons.
 [test_photon_catalysis](test_photon_catalysis) contains tests that could serve as more complete usage examples.
 
-### Boson sampling
+### Boson-sampling implementation (DV)
 
-The [boson_sampling.py](examples/boson_sampling.py) script from the [examples](examples) directory illustrates how to implement state preparation using
-an approximation of photon addition, as a boson sampling scheme.
+A Perceval circuit (and the accompanying input state and post-selection rules) can then be generated, and simulated, with:
 
-The script can be run from the command line, and simulates the Boson sampling scheme with different values of the photon addition beam-splitter reflexivity, to plot how this parameter impacts fidelity and probability of success.
+```python
+circuit = StatePreparationCircuit(W, state)
+pcvl_circuit, input_state, post_select = circuit.to_perceval(
+    photon_addition_r=0.7, decompose_unitaries=False
+)
+simulation = pcvl.Simulator(pcvl.SLOSBackend())
+simulation.set_circuit(pcvl_circuit)
+simulation.set_postselection(post_select)
+final_state = simulation.evolve(input_state)
+print(final_state)
+```
+
+---
+
+## Additional scripts
+
+The [photon_addition_performance.py](examples/photon_addition_performance.py) script from the [examples](examples) directory illustrates, on selected states, the trade-off between fidelity and probability of success resulting from the non-ideal implementation of photon addition with a beam-splitter. The script can be run from the command line, and outputs data and plots to the ```results``` directory.

@@ -12,6 +12,16 @@ import numpy as np
 
 from photon_catalysis.utils import StateDict, state_to_string
 
+try:
+    import perceval as pcvl
+    from perceval import Matrix
+    from perceval.components import BS, PERM, PS, Unitary
+    from perceval.utils.postselect import PostSelect
+
+    perceval_installed = True
+except ModuleNotFoundError:
+    perceval_installed = False
+
 
 class StatePreparationCircuit:
     """
@@ -121,16 +131,21 @@ class StatePreparationCircuit:
 
         return unitary
 
-    def to_perceval(self, photon_addition_r: float = 0.9, decompose_unitary: bool = True):
+    def to_perceval(
+        self, photon_addition_r: float = 0.9, decompose_unitaries: bool = True
+    ):
         """
+        Convert the circuit to its DV boson sampling representation, as a Perceval circuit
+
         :param photon_addition_r: The reflectivity of the beam-splitter performing photon addition
-        :param decompose_unitary: Whether the unitaries should be broken down into individual BS/PS
-        :return: Tuple (circuit: Circuit, input_state: BasicState, post_select: PostSelect) for Parceval library
+        :param decompose_unitaries: Whether the unitaries should be broken down into individual BS/PS
+        :return: Tuple (circuit: Circuit, input_state: BasicState, post_select: PostSelect) for simulating
+            the circuit with Perceval
         """
-        import perceval as pcvl
-        from perceval import Matrix
-        from perceval.components import BS, PERM, PS, Unitary
-        from perceval.utils.postselect import PostSelect
+        assert perceval_installed, (
+            "This method requires Perceval to be installed"
+            "Please install the optional dependencies, eg with pip install -e .[boson_sampling]"
+        )
 
         num_additions = self.num_additions
         unitaries = self.unitaries
@@ -144,27 +159,30 @@ class StatePreparationCircuit:
         for i in range(num_additions):
             # Photon addition with a beam-splitter
             bs = BS(BS.r_to_theta(photon_addition_r))
-            circuit //= (num_additions-1, bs)
+            circuit //= (num_additions - 1, bs)
 
             # Shuffle the photon addition modes
-            if i != num_additions-1:
+            if i != num_additions - 1:
                 permutation = list(range(num_additions))
-                swap = (num_additions-1, num_additions-2-i)
+                swap = (num_additions - 1, num_additions - 2 - i)
                 permutation[swap[0]] = swap[1]
                 permutation[swap[1]] = swap[0]
                 circuit //= PERM(permutation)
 
             m = Matrix(unitaries[i]).T
-            if decompose_unitary:
-                unitary_subcircuit = pcvl.Circuit.decomposition(m, BS(theta=pcvl.P("theta"), phi_tr=pcvl.P("phi")),
-                    phase_shifter_fn=PS)
+            if decompose_unitaries:
+                unitary_subcircuit = pcvl.Circuit.decomposition(
+                    m,
+                    BS(theta=pcvl.P("theta"), phi_tr=pcvl.P("phi")),
+                    phase_shifter_fn=PS,
+                )
             else:
                 unitary_subcircuit = Unitary(m)
             circuit //= (num_additions, unitary_subcircuit)
 
         # The single photons are initially in the addition anciliary
         # modes (Figure 2 of the paper)
-        input_state = pcvl.BasicState([1]*num_additions+[0]*num_modes)
+        input_state = pcvl.BasicState([1] * num_additions + [0] * num_modes)
 
         # Create a post-selection rule that checks that there are no
         # photons on the photon addition ancilia modes, and that
