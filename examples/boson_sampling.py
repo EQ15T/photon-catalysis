@@ -60,7 +60,7 @@ def simulate_with_perceval(
     Runs a full state vector simulation with Perceval and outputs probability
     of success and fidelity
     """
-    pcvl_circuit, input_state, post_select = circuit.to_parceval(
+    pcvl_circuit, input_state, post_select = circuit.to_perceval(
         photon_addition_r=addition_r, decompose_unitary=False
     )
     simulation = pcvl.Simulator(pcvl.SLOSBackend())
@@ -108,7 +108,7 @@ def render_circuit(
     """
     Saves a graphical representation of the circuit
     """
-    pcvl_circuit, input_state, _ = circuit.to_parceval(
+    pcvl_circuit, input_state, _ = circuit.to_perceval(
         photon_addition_r=addition_r, decompose_unitary=True
     )
 

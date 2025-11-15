@@ -121,7 +121,7 @@ class StatePreparationCircuit:
 
         return unitary
 
-    def to_parceval(self, photon_addition_r: float = 0.9, decompose_unitary: bool = True):
+    def to_perceval(self, photon_addition_r: float = 0.9, decompose_unitary: bool = True):
         """
         :param photon_addition_r: The reflectivity of the beam-splitter performing photon addition
         :param decompose_unitary: Whether the unitaries should be broken down into individual BS/PS
