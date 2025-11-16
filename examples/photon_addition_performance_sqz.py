@@ -35,11 +35,11 @@ def fidelity(x: StateDict, y: np.array) -> float:
 
 
 def simulate_state_preparation_circuit(
-    circuit: StatePreparationCircuit, squeezing_r: float
+    circuit: StatePreparationCircuit, squeezing_r: float, fock_cutoff: int = 6
 ) -> Tuple[float, float]:
     total_modes = circuit.num_modes + circuit.num_additions
     prg, post_select = circuit.to_sf(squeezing_r=squeezing_r)
-    eng = sf.Engine("fock", backend_options={"cutoff_dim": 6})
+    eng = sf.Engine("fock", backend_options={"cutoff_dim": fock_cutoff})
     output_state = eng.run(prg).state
     cond_state = output_state.ket()[post_select]
     p_success = np.sum(np.abs(cond_state) ** 2)
@@ -49,11 +49,7 @@ def simulate_state_preparation_circuit(
 
 
 def state_preparation_with_boson_sampling(
-    state: StateDict,
-    name: str,
-    num_catalysis_photons: int,
-    num_decompositions: int = 5,
-    render_circuit_to_pdf: bool = False,
+    state: StateDict, name: str, num_catalysis_photons: int, num_decompositions: int = 5
 ):
     # Find the optimal preparation
     state = normalized_state(state)
@@ -66,11 +62,6 @@ def state_preparation_with_boson_sampling(
         key=lambda t: abs(t[1]),
     )
     circuit = StatePreparationCircuit(w, state)
-
-    if render_circuit_to_pdf:
-        render_circuit_pcvl(
-            circuit, addition_r=0.9, output_file=f"{RESULTS_DIR}/{name}_circuit.pdf"
-        )
 
     num_r_values = 5
     squeezing_r_values = 10.0 ** (np.linspace(-0.2, -0.8, num_r_values))
