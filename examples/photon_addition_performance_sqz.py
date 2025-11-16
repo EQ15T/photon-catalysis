@@ -1,6 +1,6 @@
 """
-This script evaluates the fidelity/probability success trade-off of the boson
-sampling implementation, using Perceval for simulations.
+This script evaluates the fidelity/probability success trade-off of the gaussian boson
+sampling implementation, using StrawberryFields for simulations.
 """
 
 import os
@@ -10,18 +10,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-try:
-    import perceval as pcvl
-except ImportError:
-    raise SystemExit(
-        "This example requires Perceval to be installed"
-        "Please install the optional dependencies, eg with pip install -e .[boson_sampling]"
-    )
-
-from exqalibur import StateVector
-from perceval.rendering import Format
-from perceval.rendering.circuit import SymbSkin
+import strawberryfields as sf
 
 from photon_catalysis.optimal_preparation import optimal_preparation
 from photon_catalysis.state_preparation_circuit import StatePreparationCircuit
@@ -40,56 +29,23 @@ FIGURE_FILES = [
 ]
 
 
-def fidelity(x: StateDict, y: StateVector) -> float:
-    """
-    Compute the fidelity between states stored as a StateDict or a Perceval state
-    vector simulation result.
-    """
-    num_modes = len(list(x.keys())[0])
-    overlap = 0
-    for k, v in y:
-        overlap += x.get(tuple(k)[-num_modes:], 0) * v.conjugate()
+def fidelity(x: StateDict, y: np.array) -> float:
+    overlap = sum(y[ket].conj() * amplitude for ket, amplitude in x.items())
     return np.abs(overlap) ** 2
 
 
 def simulate_state_preparation_circuit(
-    circuit: StatePreparationCircuit, addition_r: float
+    circuit: StatePreparationCircuit, squeezing_r: float
 ) -> Tuple[float, float]:
-    """
-    Runs a full state vector simulation with Perceval and outputs probability
-    of success and fidelity
-    """
-    pcvl_circuit, input_state, post_select = circuit.to_perceval(
-        photon_addition_r=addition_r, decompose_unitaries=False
-    )
-    simulation = pcvl.Simulator(pcvl.SLOSBackend())
-    simulation.set_circuit(pcvl_circuit)
-    simulation.set_postselection(post_select)
-
-    final_state = simulation.evolve(input_state)
-    f = fidelity(circuit.state, final_state)
-    p_success = simulation.logical_perf
+    total_modes = circuit.num_modes + circuit.num_additions
+    prg, post_select = circuit.to_sf(squeezing_r=squeezing_r)
+    eng = sf.Engine("fock", backend_options={"cutoff_dim": 6})
+    output_state = eng.run(prg).state
+    cond_state = output_state.ket()[post_select]
+    p_success = np.sum(np.abs(cond_state) ** 2)
+    cond_state_normalized = cond_state / np.sqrt(p_success)
+    f = fidelity(circuit.state, cond_state_normalized)
     return f, p_success
-
-
-def render_circuit(
-    circuit: StatePreparationCircuit,
-    addition_r: float = 0.9,
-    output_file: str = "circuit.pdf",
-):
-    """
-    Saves a graphical representation of the circuit
-    """
-    pcvl_circuit, input_state, _ = circuit.to_perceval(
-        photon_addition_r=addition_r, decompose_unitary=True
-    )
-
-    p = pcvl.Processor("SLOS", pcvl_circuit)
-    p.with_input(input_state)
-    symbolic_skin = SymbSkin(compact_display=True)
-    pcvl.pdisplay_to_file(
-        p, output_file, output_format=Format.MPLOT, recursive=True, skin=symbolic_skin
-    )
 
 
 def state_preparation_with_boson_sampling(
@@ -112,20 +68,20 @@ def state_preparation_with_boson_sampling(
     circuit = StatePreparationCircuit(w, state)
 
     if render_circuit_to_pdf:
-        render_circuit(
+        render_circuit_pcvl(
             circuit, addition_r=0.9, output_file=f"{RESULTS_DIR}/{name}_circuit.pdf"
         )
 
-    num_r_values = 10
-    t_values = (np.linspace(0.5, 0.05, num_r_values)) ** 0.5
-    r_values = (1 - t_values**2) ** 0.5
+    num_r_values = 5
+    squeezing_r_values = 10.0 ** (np.linspace(-0.2, -0.8, num_r_values))
     for i in range(num_r_values):
         f, p_success = simulate_state_preparation_circuit(
-            circuit, addition_r=r_values[i]
+            circuit, squeezing_r=squeezing_r_values[i]
         )
         yield {
+            "kind": "CV",
             "name": name,
-            "r": r_values[i],
+            "r": squeezing_r_values[i],
             "fidelity": f,
             "probability": p_success,
         }
@@ -205,6 +161,7 @@ def main():
         df.to_csv(RESULTS_FILE, index=False)
 
     df = pd.read_csv(RESULTS_FILE)
+    df = df[df["kind"] == "CV"]
     tex_labels = {
         "psi_1": "$|\\Psi\\rangle_1$",
         "psi_2": "$|\\Psi\\rangle_2$",
@@ -233,6 +190,8 @@ def main():
             label=tex_labels[name],
         )
     plt.grid(visible=True)
+    plt.xlim([1e-5, 1e-1])
+    plt.ylim([1e-10, 1e-2])
     plt.xlabel("Distance to target state $1 - F$")
     plt.axvline(
         x=0.01, color="black", linestyle=":", linewidth=1.5, label="99\\% Fidelity"

@@ -12,16 +12,6 @@ import numpy as np
 
 from photon_catalysis.utils import StateDict, state_to_string
 
-try:
-    import perceval as pcvl
-    from perceval import Matrix
-    from perceval.components import BS, PERM, PS, Unitary
-    from perceval.utils.postselect import PostSelect
-
-    perceval_installed = True
-except ModuleNotFoundError:
-    perceval_installed = False
-
 
 class StatePreparationCircuit:
     """
@@ -142,10 +132,16 @@ class StatePreparationCircuit:
         :return: Tuple (circuit: Circuit, input_state: BasicState, post_select: PostSelect) for simulating
             the circuit with Perceval
         """
-        assert perceval_installed, (
-            "This method requires Perceval to be installed"
-            "Please install the optional dependencies, eg with pip install -e .[boson_sampling]"
-        )
+        try:
+            import perceval as pcvl
+            from perceval import Matrix
+            from perceval.components import BS, PERM, PS, Unitary
+            from perceval.utils.postselect import PostSelect
+        except ModuleNotFoundError:
+            raise SystemExit(
+                "This method requires Perceval to be installed"
+                "Please install the optional dependencies, eg with pip install -e .[boson_sampling]"
+            )
 
         num_additions = self.num_additions
         unitaries = self.unitaries
@@ -191,3 +187,36 @@ class StatePreparationCircuit:
         post_select.merge(PostSelect(f"[{num_additions}] == {pnr}"))
 
         return circuit, input_state, post_select
+
+    def to_sf(self, squeezing_r: float = 0.1):
+        """
+        Convert the circuit to its Gaussian boson sampling representation, as a StrawberryField program
+
+        :param squeezing_r: The squeezing parameter of the TMS implementing photon addition
+        :return: Tuple (program: Program, indexer: Tuple) with the SF program and the indexer to
+            post-select the result
+        """
+        try:
+            import strawberryfields as sf
+            from strawberryfields import ops
+        except ModuleNotFoundError:
+            raise SystemExit(
+                "This method requires StrawberryFields to be installed"
+                "Please install the optional dependencies, eg with pip install -e .[gaussian_boson_sampling]"
+            )
+        num_additions = self.num_additions
+        unitaries = self.unitaries
+        num_modes = self.num_modes
+        num_total_modes = num_modes + num_additions
+        program = sf.Program(num_total_modes)
+        with program.context as q:
+            for i in range(num_additions):
+                ops.S2gate(squeezing_r, 0) | (q[i], q[num_additions])
+                ops.Interferometer(unitaries[i].T) | [
+                    q[i] for i in range(num_additions, num_total_modes)
+                ]
+        post_select = [1] * num_additions + [self.pnr]
+        post_select_indexer = tuple(post_select) + (slice(None),) * (
+            num_total_modes - len(post_select)
+        )
+        return program, post_select_indexer

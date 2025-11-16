@@ -21,7 +21,7 @@ cd photon-catalysis
 pip install -e .
 ```
 
-Optionally, to run the examples simulating the boson-sampling implementation of our schemes, the [Perceval](https://github.com/Quandela/Perceval) library from Quandela needs to be installed, using the following command:
+Optionally, to run the examples simulating the boson sampling implementation of our schemes, the [Perceval](https://github.com/Quandela/Perceval) library from Quandela needs to be installed, using the following command:
 ```shell
 pip install -e git+https://github.com/EQ15T/photon-catalysis.git#egg=photon_catalysis[boson_sampling]
 ```
@@ -32,13 +32,27 @@ Or:
 pip install -e .[boson_sampling]
 ```
 
+Similarly, the examples simulating the gaussian boson sampling implementation requires the [StrawberryFields](https://github.com/XanaduAI/strawberryfields) library from Xanadu:
+
+```shell
+pip install -e git+https://github.com/EQ15T/photon-catalysis.git#egg=photon_catalysis[gaussian_boson_sampling]
+```
+
+Or:
+
+```shell
+pip install -e .[gaussian_boson_sampling]
+```
+
+Note that both can be simultaneously installed with the ```[boson_sampling,gaussian_boson_sampling]``` argument.
+
 ---
 
 ## Examples
 
 ### Basic usage
 
-Using this software, one could obtain the set of linear forms in creation operators, such that their product, upon conditioning, corresponds to the desired core state. For exmaple, for the state
+Using this software, one could obtain the set of linear forms in creation operators, such that their product, upon conditioning, corresponds to the desired core state. For example, for the state
 
 $$\ket{\psi} \propto \ket{2000} + \ket{0200} + \ket{0020} + \ket{0002}$$
 
@@ -56,7 +70,7 @@ for W, prob, fid in optimal_preparation(state, extra_photons, num_decompositions
 Rows of `W` define the linear forms, `extra_photons` is the number of catalysis photons.
 [test_photon_catalysis](test_photon_catalysis) contains tests that could serve as more complete usage examples.
 
-### Boson-sampling implementation (DV)
+### Boson sampling implementation (DV)
 
 A Perceval circuit (and the accompanying input state and post-selection rules) can then be generated, and simulated, with:
 
@@ -76,4 +90,6 @@ print(final_state)
 
 ## Additional scripts
 
-The [photon_addition_performance.py](examples/photon_addition_performance.py) script from the [examples](examples) directory illustrates, on selected states, the trade-off between fidelity and probability of success resulting from the non-ideal implementation of photon addition with a beam-splitter. The script can be run from the command line, and outputs data and plots to the ```results``` directory.
+The [photon_addition_performance_bs.py](examples/photon_addition_performance_bs.py) script from the [examples](examples) directory illustrates, on selected states, the trade-off between fidelity and probability of success resulting from the non-ideal implementation of photon addition with a beam-splitter, in the (DV) boson sampling setting. The script can be run from the command line, and outputs data and plots to the ```results``` directory.
+
+The [photon_addition_performance_sqz.py](examples/photon_addition_performance_sqz.py) script is its counterpart for the Gaussian boson sampling scheme, simulating the imperfect photon addition achieved by two-mode squeezing and PNR detection. Note that this simulation is slow and the script can take hours to run and complete.

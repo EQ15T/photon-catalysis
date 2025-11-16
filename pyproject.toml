@@ -2,6 +2,9 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# Note: the scipy <1.14 requirement is because the version of
+# strawberryfields on pypi is old and still has this issues
+# https://github.com/XanaduAI/strawberryfields/issues/750
 [project]
 name = "photon_catalysis"
 version = "0.1.0"
@@ -10,7 +13,7 @@ dependencies = [
     "numpy",
     "jax",
     "optax",
-    "scipy",
+    "scipy<1.14",
     "tqdm"
 ]
 requires-python = ">=3.9"
@@ -25,6 +28,7 @@ license-files = ["LICENSE.md"]
 
 [project.optional-dependencies]
 boson_sampling = ["perceval-quandela", "matplotlib", "pandas"]
+gaussian_boson_sampling = ["StrawberryFields", "matplotlib", "pandas"]
 
 [project.urls]
 Homepage = "https://github.com/EQ15T/photon-catalysis"
