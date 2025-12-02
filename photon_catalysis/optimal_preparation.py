@@ -94,7 +94,7 @@ def optimal_preparation(
         w = params
         if optimize_prob:
             w = normalize_W(w)
-            scale = jax.random.normal(key1, ()) + 1.j * jax.random.normal(key2, ())
+            scale = jax.random.normal(key1, ())
             optimizer = optax.adam(learning_rate=lr)
             opt_state = optimizer.init(scale)
             with logging_redirect_tqdm():
@@ -103,7 +103,10 @@ def optimal_preparation(
                     scale, opt_state, prob_value = update_prob_step(scale, w, opt_state)
                     if it % 100 == 0:
                         progress.set_postfix(prob=-prob_value, scale=scale)
-            w = normalize_W(w, complex(scale))
+            w = jnp.stack([
+                jnp.concat([v[0:1], scale*v[1:]], axis=0)
+                for v in w
+            ], axis=0)
 
         p = prob_fn(w, 1)
         f = 1 - loss_fn(w)

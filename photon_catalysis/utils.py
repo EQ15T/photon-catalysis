@@ -269,22 +269,19 @@ def W_to_stellar_tensor(w: jax.Array, s: float = 1) -> jax.Array:
         p = jnp.tensordot(p, jnp.concat((v[0:1], s * v[1:]), axis=0), axes=0)
     return p
 
-@partial(jax.jit, static_argnames='s')
-def normalize_W(w: jnp.ndarray, s: float = 0):
+@jax.jit
+def normalize_W(w: jnp.ndarray):
     """
     Renormalizes matrix defining linear forms without changing the fidelity with the target state
 
     :param w: The matrix
-    :param s: If zero, renormalizes by dividing each row by its first element (corresponding to the ancilla).
-        Otherwise, multiplies every column except the first one by the scaling factor
-    :return: Renormalized matrix
+    :return: Renormalized matrix, such that the submatrix without the first column (corresponding to ancillary mode)
+        has Frobenius norm equal to the Frobenius norm of the identity matrix of the same shape, that is ``sqrt(rows)``.
+        This corresponds to the scale in the Corollary 2 of the paper.
     """
-    return jnp.stack([
-        jnp.concat((v[0:1], s * v[1:]), axis=0)
-            if s != 0 else
-                v / v[0]
-        for v in w
-    ], axis=0)
+    w = jnp.stack([v / v[0] for v in w], axis=0)
+    w = w.at[:, 1:].divide(jnp.linalg.matrix_norm(w[:, 1:]) / jnp.sqrt(w.shape[0]))
+    return w
 
 
 def get_renorm_tensor(num_modes: int, degree: int) -> tuple[jax.Array, jax.Array]:
