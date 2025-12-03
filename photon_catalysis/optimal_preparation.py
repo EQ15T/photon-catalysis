@@ -19,23 +19,6 @@ from photon_catalysis.utils import *
 
 logger = logging.getLogger(__name__)
 
-@partial(jax.jit, static_argnames='s')
-def normalize_W(w: jnp.ndarray, s: float = 0):
-    """
-    Renormalizes matrix defining linear forms without changing the fidelity with the target state
-
-    :param w: The matrix
-    :param s: If zero, renormalizes by dividing each row by its first element (corresponding to the ancilla).
-        Otherwise, multiplies every column except the first one by the scaling factor
-    :return: Renormalized matrix
-    """
-    return jnp.stack([
-        jnp.concat((v[0:1], s * v[1:]), axis=0)
-            if s != 0 else
-                v / v[0]
-        for v in w
-    ], axis=0)
-
 def optimal_preparation(
         target_state: StateDict,
         extra_photons: int = 1,
@@ -111,7 +94,7 @@ def optimal_preparation(
         w = params
         if optimize_prob:
             w = normalize_W(w)
-            scale = jax.random.normal(key1, ()) + 1.j * jax.random.normal(key2, ())
+            scale = jax.random.normal(key1, ())
             optimizer = optax.adam(learning_rate=lr)
             opt_state = optimizer.init(scale)
             with logging_redirect_tqdm():
@@ -120,7 +103,10 @@ def optimal_preparation(
                     scale, opt_state, prob_value = update_prob_step(scale, w, opt_state)
                     if it % 100 == 0:
                         progress.set_postfix(prob=-prob_value, scale=scale)
-            w = normalize_W(w, complex(scale))
+            w = jnp.stack([
+                jnp.concat([v[0:1], scale*v[1:]], axis=0)
+                for v in w
+            ], axis=0)
 
         p = prob_fn(w, 1)
         f = 1 - loss_fn(w)

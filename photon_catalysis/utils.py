@@ -21,7 +21,7 @@ In general, there are 5 ways utilized to represent core states:
 import copy
 import itertools
 import math
-from functools import reduce
+from functools import reduce, partial
 from operator import mul
 
 import jax
@@ -268,6 +268,20 @@ def W_to_stellar_tensor(w: jax.Array, s: float = 1) -> jax.Array:
     for v in w[1:]:
         p = jnp.tensordot(p, jnp.concat((v[0:1], s * v[1:]), axis=0), axes=0)
     return p
+
+@jax.jit
+def normalize_W(w: jnp.ndarray):
+    """
+    Renormalizes matrix defining linear forms without changing the fidelity with the target state
+
+    :param w: The matrix
+    :return: Renormalized matrix, such that the submatrix without the first column (corresponding to ancillary mode)
+        has Frobenius norm equal to the Frobenius norm of the identity matrix of the same shape, that is ``sqrt(rows)``.
+        This corresponds to the scale in the Corollary 2 of the paper.
+    """
+    w = jnp.stack([v / v[0] for v in w], axis=0)
+    w = w.at[:, 1:].divide(jnp.linalg.matrix_norm(w[:, 1:]) / jnp.sqrt(w.shape[0]))
+    return w
 
 
 def get_renorm_tensor(num_modes: int, degree: int) -> tuple[jax.Array, jax.Array]:
