@@ -32,7 +32,7 @@ Or:
 pip install -e .[boson_sampling]
 ```
 
-Similarly, the examples simulating the gaussian boson sampling implementation requires the [StrawberryFields](https://github.com/XanaduAI/strawberryfields) library from Xanadu:
+Similarly, the scripts simulating the gaussian boson sampling implementation requires the [StrawberryFields](https://github.com/XanaduAI/strawberryfields) library from Xanadu:
 
 ```shell
 pip install -e git+https://github.com/EQ15T/photon-catalysis.git#egg=photon_catalysis[gaussian_boson_sampling]
@@ -92,12 +92,12 @@ print(final_state)
 
 ![Fidelity vs success probability trade-off when photon addition is implemented with a beam-splitter](resources/photon_addition_performance_bs.png "Fidelity vs success probability trade-off when photon addition is implemented with a beam-splitter")
 
-The [photon_addition_performance_bs.py](examples/photon_addition_performance_bs.py) script from the [examples](examples) directory illustrates, on selected states, the trade-off between fidelity and probability of success resulting from the non-ideal implementation of photon addition with a beam-splitter, in the (DV) boson sampling setting. The script can be run from the command line, and outputs data and plots to the ```results``` directory.
+The [photon_addition_performance_bs.py](scripts/photon_addition_performance_bs.py) script from the [scripts](scripts) directory illustrates, on selected states, the trade-off between fidelity and probability of success resulting from the non-ideal implementation of photon addition with a beam-splitter, in the (DV) boson sampling setting. The script can be run from the command line, and outputs data and plots to the ```results``` directory.
 
 ![Fidelity vs success probability trade-off when photon addition is implemented with squeezing](resources/photon_addition_performance_sqz.png "Fidelity vs success probability trade-off when photon addition is implemented with squeezing")
 
-The [photon_addition_performance_sqz.py](examples/photon_addition_performance_sqz.py) script is its counterpart for the Gaussian boson sampling scheme, simulating the imperfect photon addition achieved by two-mode squeezing and PNR detection. Note that this simulation is slow and the script can take hours to run and complete.
+The [photon_addition_performance_sqz.py](scripts/photon_addition_performance_sqz.py) script is its counterpart for the Gaussian boson sampling scheme, simulating the imperfect photon addition achieved by two-mode squeezing and PNR detection. Note that this simulation is slow and the script can take hours to run and complete.
 
-The [probability_plot.py](examples/probability_plot.py) script produces the data needed to reproduce figure 3 in the manuscript.
+The [probability_plot.py](scripts/probability_plot.py) script produces the data needed to reproduce figure 3 in the manuscript.
 
-The [paper_tables.py](examples/paper_tables.py) script reproduces the main result table (table IV).
+The [paper_tables.py](scripts/paper_tables.py) script reproduces the main result table (table IV).
