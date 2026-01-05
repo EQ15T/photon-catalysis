@@ -97,3 +97,7 @@ The [photon_addition_performance_bs.py](examples/photon_addition_performance_bs.
 ![Fidelity vs success probability trade-off when photon addition is implemented with squeezing](resources/photon_addition_performance_sqz.png "Fidelity vs success probability trade-off when photon addition is implemented with squeezing")
 
 The [photon_addition_performance_sqz.py](examples/photon_addition_performance_sqz.py) script is its counterpart for the Gaussian boson sampling scheme, simulating the imperfect photon addition achieved by two-mode squeezing and PNR detection. Note that this simulation is slow and the script can take hours to run and complete.
+
+The [probability_plot.py](examples/probability_plot.py) script produces the data needed to reproduce figure 3 in the manuscript.
+
+The [paper_tables.py](examples/paper_tables.py) script reproduces the main result table (table IV).
