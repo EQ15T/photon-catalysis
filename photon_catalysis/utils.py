@@ -21,7 +21,7 @@ In general, there are 5 ways utilized to represent core states:
 import copy
 import itertools
 import math
-from functools import reduce, partial
+from functools import reduce
 from operator import mul
 
 import jax
@@ -268,6 +268,7 @@ def W_to_stellar_tensor(w: jax.Array, s: float = 1) -> jax.Array:
     for v in w[1:]:
         p = jnp.tensordot(p, jnp.concat((v[0:1], s * v[1:]), axis=0), axes=0)
     return p
+
 
 @jax.jit
 def normalize_W(w: jnp.ndarray):

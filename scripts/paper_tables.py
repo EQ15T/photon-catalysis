@@ -5,11 +5,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import sympy as sp
 
 from photon_catalysis.benchmark_states import benchmark_states
 from photon_catalysis.optimal_preparation import optimal_preparation
-from photon_catalysis.utils import kets_to_state_dict
 from photon_catalysis.waring_preparation import waring_preparation
 
 

@@ -3,30 +3,28 @@ This module contains functions related to the state preparation using direct opt
 it corresponds to the solution of the decomposition in Theorem 2 in https://arxiv.org/abs/2507.19397, or, alternatively,
 it could be viewed as a generalization of Kopulov's method proposed in https://doi.org/10.1103/sv6z-v1gk.
 """
-from functools import partial
+
+import logging
 
 import jax
-import numpy as np
 import optax
-import scipy.optimize as opt
-
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-import logging
 from photon_catalysis.utils import *
-
 
 logger = logging.getLogger(__name__)
 
+
 def optimal_preparation(
-        target_state: StateDict,
-        extra_photons: int = 1,
-        num_decompositions: int=10,
-        start_seed: int=0,
-        num_iterations: int = 10000,
-        lr:float =0.01,
-        optimize_prob: bool = True):
+    target_state: StateDict,
+    extra_photons: int = 1,
+    num_decompositions: int = 10,
+    start_seed: int = 0,
+    num_iterations: int = 10000,
+    lr: float = 0.01,
+    optimize_prob: bool = True,
+):
     """
     Yields tuples of the form ``(W, p, f)``, where ``W`` is a matrix which rows define set of linear forms for the
     multiport interferometer. ``p`` is the probability of successfully conditioning on having ``extra_photons`` in the
@@ -85,7 +83,9 @@ def optimal_preparation(
         opt_state = optimizer.init(params)
 
         with logging_redirect_tqdm():
-            progress = tqdm(range(num_iterations), desc='Optimizing fidelity...', leave=True)
+            progress = tqdm(
+                range(num_iterations), desc="Optimizing fidelity...", leave=True
+            )
             for it in progress:
                 params, opt_state, loss_value = update_step(params, opt_state)
                 if it % 100 == 0:
@@ -98,15 +98,16 @@ def optimal_preparation(
             optimizer = optax.adam(learning_rate=lr)
             opt_state = optimizer.init(scale)
             with logging_redirect_tqdm():
-                progress = tqdm(range(num_iterations), desc='Optimizing probability...', leave=True)
+                progress = tqdm(
+                    range(num_iterations), desc="Optimizing probability...", leave=True
+                )
                 for it in progress:
                     scale, opt_state, prob_value = update_prob_step(scale, w, opt_state)
                     if it % 100 == 0:
                         progress.set_postfix(prob=-prob_value, scale=scale)
-            w = jnp.stack([
-                jnp.concat([v[0:1], scale*v[1:]], axis=0)
-                for v in w
-            ], axis=0)
+            w = jnp.stack(
+                [jnp.concat([v[0:1], scale * v[1:]], axis=0) for v in w], axis=0
+            )
 
         p = prob_fn(w, 1)
         f = 1 - loss_fn(w)

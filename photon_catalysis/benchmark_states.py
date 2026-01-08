@@ -3,7 +3,6 @@ This module contains the definition of all the states used for benchmarking
 """
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
 
 import sympy as sp
 

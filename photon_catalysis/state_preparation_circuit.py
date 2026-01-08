@@ -5,7 +5,6 @@ the side-information (number of modes, PNR number) to allow a conversion to an a
 implementation (eg as boson sampling).
 """
 
-import copy
 from typing import List
 
 import numpy as np
