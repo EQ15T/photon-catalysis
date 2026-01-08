@@ -21,6 +21,10 @@ class BenchmarkState:
     def num_photons(self) -> int:
         return sum(next(iter(self.state.keys())))
 
+    @property
+    def num_modes(self) -> int:
+        return len(list(self.state.keys())[0])
+
 
 # Create all benchmark states
 benchmark_states = [
