@@ -5,7 +5,6 @@ the side-information (number of modes, PNR number) to allow a conversion to an a
 implementation (eg as boson sampling).
 """
 
-import copy
 from typing import List
 
 import numpy as np
@@ -20,9 +19,7 @@ class StatePreparationCircuit:
 
     def __init__(self, w: np.array, state: StateDict):
         num_target_photons = sum(list(state.items())[0][0])
-        unitaries = self._linear_forms_to_unitaries(np.asarray(w))
-
-        self._unitaries = [np.array(u.tolist()).astype(complex) for u in unitaries]
+        self._unitaries = self._linear_forms_to_unitaries(np.asarray(w))
         self._num_additions, self._num_modes = w.shape
         self._num_target_photons = num_target_photons
         self._pnr = self._num_additions - num_target_photons
@@ -67,7 +64,7 @@ class StatePreparationCircuit:
             u = StatePreparationCircuit._complete_unitary(w[i, :])
             # Back-propagate the basis change to the previous linear forms
             for j in range(i + 1, n):
-                w[j, :] = w[j, :] @ u.conj().T
+                w[j, :] = w[j, :] @ u.conj()
             unitaries.append(u)
         return unitaries[::-1]
 
@@ -93,9 +90,9 @@ class StatePreparationCircuit:
             # w is not sparse anyway, we can just orthogonalize the full
             # matrix instead of just orthogonalizeing the non-trivial
             # subspace
-            unitary[0, :] = w
-            q, _ = np.linalg.qr(unitary.T)
-            return q.T
+            unitary[:, 0] = w
+            q, _ = np.linalg.qr(unitary)
+            return q
 
         # Check in which rows we will have to add orthogonal elements
         support = [i for i in range(n) if w[i] != 0]
@@ -103,8 +100,8 @@ class StatePreparationCircuit:
 
         # Orthogonalize the non-trivial subspace
         sub_u = np.eye(n_s, dtype=complex)
-        sub_u[0, :] = w[support]
-        q, _ = np.linalg.qr(sub_u.T)
+        sub_u[:, 0] = w[support]
+        q, _ = np.linalg.qr(sub_u)
         sub_u = q.T
 
         # Update the non-trivial subspace
@@ -119,7 +116,7 @@ class StatePreparationCircuit:
         if 0 not in affected_cols:
             unitary[support[0], 0] = 1
 
-        return unitary
+        return unitary.T
 
     def to_perceval(
         self, photon_addition_r: float = 0.9, decompose_unitaries: bool = True
@@ -165,7 +162,7 @@ class StatePreparationCircuit:
                 permutation[swap[1]] = swap[0]
                 circuit //= PERM(permutation)
 
-            m = Matrix(unitaries[i]).T
+            m = Matrix(unitaries[i])
             if decompose_unitaries:
                 unitary_subcircuit = pcvl.Circuit.decomposition(
                     m,
@@ -212,7 +209,7 @@ class StatePreparationCircuit:
         with program.context as q:
             for i in range(num_additions):
                 ops.S2gate(squeezing_r, 0) | (q[i], q[num_additions])
-                ops.Interferometer(unitaries[i].T) | [
+                ops.Interferometer(unitaries[i]) | [
                     q[i] for i in range(num_additions, num_total_modes)
                 ]
         post_select = [1] * num_additions + [self.pnr]

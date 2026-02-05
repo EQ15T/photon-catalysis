@@ -27,7 +27,7 @@ def test_state_preparation_circuit_end_to_end():
         # Photon addition
         p *= ancilia
         # Unitary
-        product = sp.Matrix(u) * sp.Matrix(variables)
+        product = sp.Matrix(u).T * sp.Matrix(variables)
         substitutions = zip(variables, list(product.col(0)))
         p = p.subs(substitutions, simultaneous=True)
 
@@ -50,7 +50,7 @@ def test_unitary_completion():
         return np.allclose(ratio / ratio[0], 1)
 
     # Completion that does not preserve sparsity
-    u = StatePreparationCircuit._complete_unitary(w, keep_sparse=False)
+    u = StatePreparationCircuit._complete_unitary(w, keep_sparse=False).T
     assert np.all(np.isclose(u.conj().T @ u, np.eye(4)))
     assert same_up_to_phase(u[0], w)
     assert np.count_nonzero(u[1]) == 3
@@ -58,7 +58,7 @@ def test_unitary_completion():
     assert np.count_nonzero(u[3]) == 1
 
     # Completion that affects the least number of modes
-    u = StatePreparationCircuit._complete_unitary(w, keep_sparse=True)
+    u = StatePreparationCircuit._complete_unitary(w, keep_sparse=True).T
     assert np.all(np.isclose(u.conj().T @ u, np.eye(4)))
     assert same_up_to_phase(u[0], w)
     assert np.count_nonzero(u[1]) == 1

@@ -4,6 +4,7 @@ sampling implementation, using StrawberryFields for simulations.
 """
 
 import os
+from dataclasses import replace
 from typing import Tuple
 
 import matplotlib
@@ -12,14 +13,10 @@ import numpy as np
 import pandas as pd
 import strawberryfields as sf
 
+from photon_catalysis.benchmark_states import benchmark_states_dict
 from photon_catalysis.optimal_preparation import optimal_preparation
 from photon_catalysis.state_preparation_circuit import StatePreparationCircuit
-from photon_catalysis.utils import (
-    StateDict,
-    kets_to_state_dict,
-    normalized_state,
-    state_to_string,
-)
+from photon_catalysis.utils import StateDict, normalized_state
 
 RESULTS_DIR = "results"
 FILENAME = os.path.basename(__file__.replace(".py", ""))
@@ -78,74 +75,22 @@ def state_preparation_with_boson_sampling(
         }
 
 
-all_states = {
-    "psi_1": kets_to_state_dict([(2, 0, 0), (0, 2, 0), (0, 0, 2)]),
-    "psi_2": kets_to_state_dict([(3, 0, 0), (0, 3, 0), (0, 0, 3)]),
-    "psi_3": kets_to_state_dict([(4, 0, 0), (0, 4, 0), (0, 0, 4)]),
-    "psi_4": kets_to_state_dict(
-        [(2, 0, 0, 0), (0, 2, 0, 0), (0, 0, 2, 0), (0, 0, 0, 2)]
-    ),
-    "psi_5": kets_to_state_dict(
-        [(0, 1, 2), (1, 2, 0), (2, 0, 1), (0, 2, 1), (1, 0, 2), (2, 1, 0)]
-    ),
-    "psi_6": kets_to_state_dict([(1, 1, 0), (1, 0, 1), (0, 1, 1)]),
-    "psi_7": kets_to_state_dict([(2, 2, 0), (2, 0, 2), (0, 2, 2)]),
-    "psi_8": kets_to_state_dict([(2, 0, 0, 0), (0, 1, 1, 0), (0, 0, 0, 2)]),
-    "psi_9": kets_to_state_dict(
-        [(3, 0, 0, 0), (0, 2, 1, 0), (0, 1, 2, 0), (0, 0, 0, 3)]
-    ),
-    "psi_10": kets_to_state_dict([(0, 4, 0), (1, 2, 1), (2, 0, 2)]),
-    "R4": kets_to_state_dict([(3, 0, 0), (0, 3, 0), (0, 0, 3), (1, 1, 1)]),
-    "R5": kets_to_state_dict([(2, 1, 0), (0, 2, 1)]),
-    "R2": {
-        (3, 0, 0): np.sqrt(13) / 13,
-        (1, 2, 0): np.sqrt(39) / 13,
-        (1, 1, 1): np.sqrt(78) / 13,
-        (1, 0, 2): np.sqrt(39) / 13,
-    },
-    "K3": {
-        (3, 0, 0, 0): 1,
-        (2, 1, 0, 0): 1,
-        (2, 0, 1, 0): 1,
-        (2, 0, 0, 1): 1,
-        (1, 1, 1, 0): -1,
-        (1, 1, 0, 1): -1,
-        (1, 0, 1, 1): -1,
-        (0, 1, 1, 1): -1,
-    },
-}
-
-expected_extra_photons = {
-    "psi_1": 1,
-    "psi_2": 1,
-    "psi_3": 2,
-    "psi_4": 2,
-    "psi_5": 1,
-    "psi_6": 1,
-    "psi_7": 1,
-    "psi_8": 2,
-    "psi_9": 2,
-    "psi_10": 2,
-    "R4": 1,
-    "R5": 1,
-    "R2": 1,
-    "K3": 2,
-}
-
-
 def main():
     force_run = False
     os.makedirs(RESULTS_DIR, exist_ok=True)
     if force_run or not os.path.exists(RESULTS_FILE):
+        benchmark_states_dict["psi_10 N=5"] = replace(
+            benchmark_states_dict["psi_10"], name="psi_10 N=5", extra_photons=1
+        )
+
         candidates = ["psi_1", "psi_2", "psi_8", "psi_10", "psi_10 N=5"]
-        expected_extra_photons["psi_10 N=5"] = 1
-        all_states["psi_10 N=5"] = all_states["psi_10"]
+
         results = []
         for name in candidates:
-            num_catalysis_photons = expected_extra_photons[name]
+            state = benchmark_states_dict[name]
             results += list(
                 state_preparation_with_boson_sampling(
-                    all_states[name], name, num_catalysis_photons
+                    state.state, name, state.extra_photons
                 )
             )
         df = pd.DataFrame(results)
