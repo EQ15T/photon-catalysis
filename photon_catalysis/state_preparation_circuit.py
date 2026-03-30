@@ -17,9 +17,9 @@ class StatePreparationCircuit:
     Abstract representation of a state preparation circuit
     """
 
-    def __init__(self, w: np.array, state: StateDict):
+    def __init__(self, w: np.array, state: StateDict, r_addition: float = 1):
         num_target_photons = sum(list(state.items())[0][0])
-        self._unitaries = self._linear_forms_to_unitaries(np.asarray(w))
+        self._unitaries = self._linear_forms_to_unitaries(np.asarray(w), r_addition)
         self._num_additions, self._num_modes = w.shape
         self._num_target_photons = num_target_photons
         self._pnr = self._num_additions - num_target_photons
@@ -51,20 +51,22 @@ class StatePreparationCircuit:
         return self._name
 
     @staticmethod
-    def _linear_forms_to_unitaries(w: np.ndarray) -> List[np.ndarray]:
+    def _linear_forms_to_unitaries(w: np.ndarray, r_addition: float) -> List[np.ndarray]:
         """
         Converts a list of linear form to a list of unitaries.
         This implements algorithm 1 from Appendix C. https://arxiv.org/pdf/2507.19397
         """
+        S_inv = np.eye(w.shape[1])
+        S_inv[0, 0] = 1 / np.sqrt(r_addition)
         w = w.copy()
         n, _ = w.shape
         unitaries = []
         for i in range(n):
             # Find a unitary matrix whose first row corresponds to the linear form
-            u = StatePreparationCircuit._complete_unitary(w[i, :])
+            u = StatePreparationCircuit._complete_unitary(w[i, :], False)
             # Back-propagate the basis change to the previous linear forms
             for j in range(i + 1, n):
-                w[j, :] = w[j, :] @ u.conj()
+                w[j, :] = w[j, :] @ u.conj() @ S_inv
             unitaries.append(u)
         return unitaries[::-1]
 

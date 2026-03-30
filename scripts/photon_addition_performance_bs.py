@@ -103,17 +103,17 @@ def state_preparation_with_boson_sampling(
         ),
         key=lambda t: abs(t[1]),
     )
-    circuit = StatePreparationCircuit(w, state)
 
-    if render_circuit_to_pdf:
-        render_circuit(
-            circuit, addition_r=0.9, output_file=f"{RESULTS_DIR}/{name}_circuit.pdf"
-        )
+    # if render_circuit_to_pdf:
+    #     render_circuit(
+    #         circuit, addition_r=0.9, output_file=f"{RESULTS_DIR}/{name}_circuit.pdf"
+    #     )
 
-    num_r_values = 10
-    t_values = (np.linspace(0.5, 0.05, num_r_values)) ** 0.5
+    num_r_values = 20
+    t_values = (np.linspace(0.95, 0.05, num_r_values)) ** 0.5
     r_values = (1 - t_values**2) ** 0.5
     for i in range(num_r_values):
+        circuit = StatePreparationCircuit(w, state, r_values[i])
         f, p_success = simulate_state_preparation_circuit(
             circuit, addition_r=r_values[i]
         )
@@ -177,8 +177,8 @@ def main():
             label=tex_labels[name],
         )
     plt.grid(visible=True)
-    plt.xlim([1e-5, 1e-1])
-    plt.ylim([1e-10, 1e-2])
+    plt.xlim([1e-10, 1e-1])
+    plt.ylim([1e-10, 1e-1])
     plt.xlabel("Distance to target state $1 - F$")
     plt.axvline(
         x=0.01, color="black", linestyle=":", linewidth=1.5, label="99\\% Fidelity"
