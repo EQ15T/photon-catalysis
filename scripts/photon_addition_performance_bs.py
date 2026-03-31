@@ -47,14 +47,14 @@ def fidelity(x: StateDict, y: StateVector) -> float:
 
 
 def simulate_state_preparation_circuit(
-    circuit: StatePreparationCircuit, addition_r: float
+    circuit: StatePreparationCircuit
 ) -> Tuple[float, float]:
     """
     Runs a full state vector simulation with Perceval and outputs probability
     of success and fidelity
     """
     pcvl_circuit, input_state, post_select = circuit.to_perceval(
-        photon_addition_r=addition_r, decompose_unitaries=False
+        decompose_unitaries=False
     )
     simulation = pcvl.Simulator(pcvl.SLOSBackend())
     simulation.set_circuit(pcvl_circuit)
@@ -115,7 +115,7 @@ def state_preparation_with_boson_sampling(
     for i in range(num_r_values):
         circuit = StatePreparationCircuit(w, state, r_values[i])
         f, p_success = simulate_state_preparation_circuit(
-            circuit, addition_r=r_values[i]
+            circuit
         )
         yield {
             "kind": "DV",

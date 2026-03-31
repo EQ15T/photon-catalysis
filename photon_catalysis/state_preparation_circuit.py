@@ -19,6 +19,7 @@ class StatePreparationCircuit:
 
     def __init__(self, w: np.array, state: StateDict, r_addition: float = 1):
         num_target_photons = sum(list(state.items())[0][0])
+        self._r_addition = r_addition
         self._unitaries = self._linear_forms_to_unitaries(np.asarray(w), r_addition)
         self._num_additions, self._num_modes = w.shape
         self._num_target_photons = num_target_photons
@@ -121,12 +122,11 @@ class StatePreparationCircuit:
         return unitary.T
 
     def to_perceval(
-        self, photon_addition_r: float = 0.9, decompose_unitaries: bool = True
+        self, decompose_unitaries: bool = True
     ):
         """
         Convert the circuit to its DV boson sampling representation, as a Perceval circuit
 
-        :param photon_addition_r: The reflectivity of the beam-splitter performing photon addition
         :param decompose_unitaries: Whether the unitaries should be broken down into individual BS/PS
         :return: Tuple (circuit: Circuit, input_state: BasicState, post_select: PostSelect) for simulating
             the circuit with Perceval
@@ -153,7 +153,7 @@ class StatePreparationCircuit:
 
         for i in range(num_additions):
             # Photon addition with a beam-splitter
-            bs = BS(BS.r_to_theta(photon_addition_r))
+            bs = BS(BS.r_to_theta(self._r_addition))
             circuit //= (num_additions - 1, bs)
 
             # Shuffle the photon addition modes
