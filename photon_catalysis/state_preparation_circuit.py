@@ -11,16 +11,17 @@ import numpy as np
 
 from photon_catalysis.utils import StateDict, state_to_string
 
-
 class StatePreparationCircuit:
     """
     Abstract representation of a state preparation circuit
     """
 
-    def __init__(self, w: np.array, state: StateDict, r_addition: float = 1):
+    def __init__(self, w: np.array, state: StateDict, corr_addition: float = 1):
+        """
+        :param corr_addition: The correction for the photon addition
+        """
         num_target_photons = sum(list(state.items())[0][0])
-        self._r_addition = r_addition
-        self._unitaries = self._linear_forms_to_unitaries(np.asarray(w), r_addition)
+        self._unitaries = self._linear_forms_to_unitaries(np.asarray(w), corr_addition)
         self._num_additions, self._num_modes = w.shape
         self._num_target_photons = num_target_photons
         self._pnr = self._num_additions - num_target_photons
@@ -52,13 +53,13 @@ class StatePreparationCircuit:
         return self._name
 
     @staticmethod
-    def _linear_forms_to_unitaries(w: np.ndarray, r_addition: float) -> List[np.ndarray]:
+    def _linear_forms_to_unitaries(w: np.ndarray, corr_addition: float = 1) -> List[np.ndarray]:
         """
         Converts a list of linear form to a list of unitaries.
         This implements algorithm 1 from Appendix C. https://arxiv.org/pdf/2507.19397
         """
         S_inv = np.eye(w.shape[1])
-        S_inv[0, 0] = 1 / np.sqrt(r_addition)
+        S_inv[0, 0] = 1 / corr_addition
         w = w.copy()
         n, _ = w.shape
         unitaries = []
@@ -122,11 +123,12 @@ class StatePreparationCircuit:
         return unitary.T
 
     def to_perceval(
-        self, decompose_unitaries: bool = True
+        self, photon_addition_r: float = 0.9, decompose_unitaries: bool = True
     ):
         """
         Convert the circuit to its DV boson sampling representation, as a Perceval circuit
 
+        :param photon_addition_r: The reflectivity of the beam-splitter performing photon addition
         :param decompose_unitaries: Whether the unitaries should be broken down into individual BS/PS
         :return: Tuple (circuit: Circuit, input_state: BasicState, post_select: PostSelect) for simulating
             the circuit with Perceval
@@ -153,7 +155,7 @@ class StatePreparationCircuit:
 
         for i in range(num_additions):
             # Photon addition with a beam-splitter
-            bs = BS(BS.r_to_theta(self._r_addition))
+            bs = BS(BS.r_to_theta(photon_addition_r))
             circuit //= (num_additions - 1, bs)
 
             # Shuffle the photon addition modes
@@ -219,3 +221,23 @@ class StatePreparationCircuit:
             num_total_modes - len(post_select)
         )
         return program, post_select_indexer
+
+
+
+class ExactStatePreparationCircuitBS(StatePreparationCircuit):
+    def __init__(self, w: np.array, state: StateDict, r_addition: float = 0.99):
+        super().__init__(w, state, np.sqrt(r_addition))
+        self._r_addition = r_addition
+    
+    def to_perceval(self, decompose_unitaries: bool = True):
+        return super().to_perceval(self._r_addition, decompose_unitaries)
+
+
+class ExactStatePreparationCircuitSQ(StatePreparationCircuit):
+    def __init__(self, w: np.array, state: StateDict, r_addition: float = 0.99):
+        super().__init__(w, state, 1 / np.cosh(r_addition))
+        self._r_addition = r_addition
+    
+    def to_sf(self):
+        return super().to_sf(self._r_addition)
+

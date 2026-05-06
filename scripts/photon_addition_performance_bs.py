@@ -25,10 +25,10 @@ from perceval.rendering.circuit import SymbSkin
 
 from photon_catalysis.benchmark_states import benchmark_states_dict
 from photon_catalysis.optimal_preparation import optimal_preparation
-from photon_catalysis.state_preparation_circuit import StatePreparationCircuit
+from photon_catalysis.state_preparation_circuit import ExactStatePreparationCircuitBS, StatePreparationCircuit
 from photon_catalysis.utils import StateDict, normalized_state
 
-RESULTS_DIR = "results"
+RESULTS_DIR = "results_bs"
 FILENAME = os.path.basename(__file__.replace(".py", ""))
 RESULTS_FILE = os.path.join(RESULTS_DIR, FILENAME + ".csv")
 FIGURE_FILES = [
@@ -47,7 +47,7 @@ def fidelity(x: StateDict, y: StateVector) -> float:
 
 
 def simulate_state_preparation_circuit(
-    circuit: StatePreparationCircuit
+    circuit: ExactStatePreparationCircuitBS
 ) -> Tuple[float, float]:
     """
     Runs a full state vector simulation with Perceval and outputs probability
@@ -75,7 +75,7 @@ def render_circuit(
     Saves a graphical representation of the circuit
     """
     pcvl_circuit, input_state, _ = circuit.to_perceval(
-        photon_addition_r=addition_r, decompose_unitary=True
+        photon_addition_r=addition_r, decompose_unitaries=True
     )
 
     p = pcvl.Processor("SLOS", pcvl_circuit)
@@ -113,7 +113,7 @@ def state_preparation_with_boson_sampling(
     t_values = (np.linspace(0.95, 0.05, num_r_values)) ** 0.5
     r_values = (1 - t_values**2) ** 0.5
     for i in range(num_r_values):
-        circuit = StatePreparationCircuit(w, state, r_values[i])
+        circuit = ExactStatePreparationCircuitBS(w, state, r_values[i])
         f, p_success = simulate_state_preparation_circuit(
             circuit
         )
