@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 # https://github.com/XanaduAI/strawberryfields/issues/750
 [project]
 name = "photon_catalysis"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
     "sympy",
     "numpy",
