@@ -25,7 +25,7 @@ from perceval.rendering.circuit import SymbSkin
 
 from photon_catalysis.benchmark_states import benchmark_states_dict
 from photon_catalysis.optimal_preparation import optimal_preparation
-from photon_catalysis.state_preparation_circuit import ExactStatePreparationCircuitBS, StatePreparationCircuit
+from photon_catalysis.state_preparation_circuit import StatePreparationCircuitBS
 from photon_catalysis.utils import StateDict, normalized_state
 
 RESULTS_DIR = "results_bs"
@@ -47,7 +47,7 @@ def fidelity(x: StateDict, y: StateVector) -> float:
 
 
 def simulate_state_preparation_circuit(
-    circuit: ExactStatePreparationCircuitBS
+    circuit: StatePreparationCircuitBS,
 ) -> Tuple[float, float]:
     """
     Runs a full state vector simulation with Perceval and outputs probability
@@ -67,16 +67,14 @@ def simulate_state_preparation_circuit(
 
 
 def render_circuit(
-    circuit: StatePreparationCircuit,
+    circuit: StatePreparationCircuitBS,
     addition_r: float = 0.9,
     output_file: str = "circuit.pdf",
 ):
     """
     Saves a graphical representation of the circuit
     """
-    pcvl_circuit, input_state, _ = circuit.to_perceval(
-        photon_addition_r=addition_r, decompose_unitaries=True
-    )
+    pcvl_circuit, input_state, _ = circuit.to_perceval(decompose_unitaries=True)
 
     p = pcvl.Processor("SLOS", pcvl_circuit)
     p.with_input(input_state)
@@ -92,6 +90,7 @@ def state_preparation_with_boson_sampling(
     num_catalysis_photons: int,
     num_decompositions: int = 5,
     render_circuit_to_pdf: bool = False,
+    exact_addition: bool = False,
 ):
     # Find the optimal preparation
     state = normalized_state(state)
@@ -104,19 +103,17 @@ def state_preparation_with_boson_sampling(
         key=lambda t: abs(t[1]),
     )
 
-    # if render_circuit_to_pdf:
-    #     render_circuit(
-    #         circuit, addition_r=0.9, output_file=f"{RESULTS_DIR}/{name}_circuit.pdf"
-    #     )
-
     num_r_values = 20
     t_values = (np.linspace(0.95, 0.05, num_r_values)) ** 0.5
     r_values = (1 - t_values**2) ** 0.5
     for i in range(num_r_values):
-        circuit = ExactStatePreparationCircuitBS(w, state, r_values[i])
-        f, p_success = simulate_state_preparation_circuit(
-            circuit
-        )
+        circuit = StatePreparationCircuitBS(w, state, r_values[i], exact_addition)
+        if render_circuit_to_pdf:
+            render_circuit(
+                circuit,
+                output_file=f"{RESULTS_DIR}/{name}_{r_values[i]:.3f}_circuit.pdf",
+            )
+        f, p_success = simulate_state_preparation_circuit(circuit)
         yield {
             "kind": "DV",
             "name": name,
@@ -127,7 +124,9 @@ def state_preparation_with_boson_sampling(
 
 
 def main():
-    force_run = False
+    force_run = True
+    exact_addition = False
+
     os.makedirs(RESULTS_DIR, exist_ok=True)
     if force_run or not os.path.exists(RESULTS_FILE):
         benchmark_states_dict["psi_10 N=5"] = replace(
@@ -141,7 +140,10 @@ def main():
             state = benchmark_states_dict[name]
             results += list(
                 state_preparation_with_boson_sampling(
-                    state.state, name, state.extra_photons
+                    state.state,
+                    name,
+                    state.extra_photons,
+                    exact_addition=exact_addition,
                 )
             )
         df = pd.DataFrame(results)
@@ -177,7 +179,7 @@ def main():
             label=tex_labels[name],
         )
     plt.grid(visible=True)
-    plt.xlim([1e-10, 1e-1])
+    plt.xlim([1e-10 if exact_addition else 1e-5, 1e-1])
     plt.ylim([1e-10, 1e-1])
     plt.xlabel("Distance to target state $1 - F$")
     plt.axvline(
