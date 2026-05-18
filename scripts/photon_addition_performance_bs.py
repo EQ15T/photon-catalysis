@@ -25,10 +25,10 @@ from perceval.rendering.circuit import SymbSkin
 
 from photon_catalysis.benchmark_states import benchmark_states_dict
 from photon_catalysis.optimal_preparation import optimal_preparation
-from photon_catalysis.state_preparation_circuit import StatePreparationCircuit
+from photon_catalysis.state_preparation_circuit import ExactStatePreparationCircuitBS, StatePreparationCircuit
 from photon_catalysis.utils import StateDict, normalized_state
 
-RESULTS_DIR = "results"
+RESULTS_DIR = "results_bs"
 FILENAME = os.path.basename(__file__.replace(".py", ""))
 RESULTS_FILE = os.path.join(RESULTS_DIR, FILENAME + ".csv")
 FIGURE_FILES = [
@@ -47,14 +47,14 @@ def fidelity(x: StateDict, y: StateVector) -> float:
 
 
 def simulate_state_preparation_circuit(
-    circuit: StatePreparationCircuit, addition_r: float
+    circuit: ExactStatePreparationCircuitBS
 ) -> Tuple[float, float]:
     """
     Runs a full state vector simulation with Perceval and outputs probability
     of success and fidelity
     """
     pcvl_circuit, input_state, post_select = circuit.to_perceval(
-        photon_addition_r=addition_r, decompose_unitaries=False
+        decompose_unitaries=False
     )
     simulation = pcvl.Simulator(pcvl.SLOSBackend())
     simulation.set_circuit(pcvl_circuit)
@@ -75,7 +75,7 @@ def render_circuit(
     Saves a graphical representation of the circuit
     """
     pcvl_circuit, input_state, _ = circuit.to_perceval(
-        photon_addition_r=addition_r, decompose_unitary=True
+        photon_addition_r=addition_r, decompose_unitaries=True
     )
 
     p = pcvl.Processor("SLOS", pcvl_circuit)
@@ -103,19 +103,19 @@ def state_preparation_with_boson_sampling(
         ),
         key=lambda t: abs(t[1]),
     )
-    circuit = StatePreparationCircuit(w, state)
 
-    if render_circuit_to_pdf:
-        render_circuit(
-            circuit, addition_r=0.9, output_file=f"{RESULTS_DIR}/{name}_circuit.pdf"
-        )
+    # if render_circuit_to_pdf:
+    #     render_circuit(
+    #         circuit, addition_r=0.9, output_file=f"{RESULTS_DIR}/{name}_circuit.pdf"
+    #     )
 
-    num_r_values = 10
-    t_values = (np.linspace(0.5, 0.05, num_r_values)) ** 0.5
+    num_r_values = 20
+    t_values = (np.linspace(0.95, 0.05, num_r_values)) ** 0.5
     r_values = (1 - t_values**2) ** 0.5
     for i in range(num_r_values):
+        circuit = ExactStatePreparationCircuitBS(w, state, r_values[i])
         f, p_success = simulate_state_preparation_circuit(
-            circuit, addition_r=r_values[i]
+            circuit
         )
         yield {
             "kind": "DV",
@@ -177,8 +177,8 @@ def main():
             label=tex_labels[name],
         )
     plt.grid(visible=True)
-    plt.xlim([1e-5, 1e-1])
-    plt.ylim([1e-10, 1e-2])
+    plt.xlim([1e-10, 1e-1])
+    plt.ylim([1e-10, 1e-1])
     plt.xlabel("Distance to target state $1 - F$")
     plt.axvline(
         x=0.01, color="black", linestyle=":", linewidth=1.5, label="99\\% Fidelity"

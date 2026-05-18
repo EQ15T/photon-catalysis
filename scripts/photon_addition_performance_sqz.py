@@ -15,10 +15,10 @@ import strawberryfields as sf
 
 from photon_catalysis.benchmark_states import benchmark_states_dict
 from photon_catalysis.optimal_preparation import optimal_preparation
-from photon_catalysis.state_preparation_circuit import StatePreparationCircuit
+from photon_catalysis.state_preparation_circuit import ExactStatePreparationCircuitSQ, StatePreparationCircuit
 from photon_catalysis.utils import StateDict, normalized_state
 
-RESULTS_DIR = "results"
+RESULTS_DIR = "results_sqz"
 FILENAME = os.path.basename(__file__.replace(".py", ""))
 RESULTS_FILE = os.path.join(RESULTS_DIR, FILENAME + ".csv")
 FIGURE_FILES = [
@@ -32,10 +32,10 @@ def fidelity(x: StateDict, y: np.array) -> float:
 
 
 def simulate_state_preparation_circuit(
-    circuit: StatePreparationCircuit, squeezing_r: float, fock_cutoff: int = 6
+    circuit: StatePreparationCircuit, fock_cutoff: int = 6
 ) -> Tuple[float, float]:
     total_modes = circuit.num_modes + circuit.num_additions
-    prg, post_select = circuit.to_sf(squeezing_r=squeezing_r)
+    prg, post_select = circuit.to_sf()
     eng = sf.Engine("fock", backend_options={"cutoff_dim": fock_cutoff})
     output_state = eng.run(prg).state
     cond_state = output_state.ket()[post_select]
@@ -58,18 +58,18 @@ def state_preparation_with_boson_sampling(
         ),
         key=lambda t: abs(t[1]),
     )
-    circuit = StatePreparationCircuit(w, state)
-
     num_r_values = 5
     squeezing_r_values = 10.0 ** (np.linspace(-0.2, -0.8, num_r_values))
     for i in range(num_r_values):
+        r = squeezing_r_values[i]
+        circuit = ExactStatePreparationCircuitSQ(w, state, r)
         f, p_success = simulate_state_preparation_circuit(
-            circuit, squeezing_r=squeezing_r_values[i]
+            circuit
         )
         yield {
             "kind": "CV",
             "name": name,
-            "r": squeezing_r_values[i],
+            "r": r,
             "fidelity": f,
             "probability": p_success,
         }
@@ -126,8 +126,8 @@ def main():
             label=tex_labels[name],
         )
     plt.grid(visible=True)
-    plt.xlim([1e-5, 1e-1])
-    plt.ylim([1e-10, 1e-2])
+    plt.xlim([1e-10, 1e-1])
+    plt.ylim([1e-10, 1e-1])
     plt.xlabel("Distance to target state $1 - F$")
     plt.axvline(
         x=0.01, color="black", linestyle=":", linewidth=1.5, label="99\\% Fidelity"
