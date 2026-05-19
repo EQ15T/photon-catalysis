@@ -92,7 +92,7 @@ print(final_state)
 
 ![Fidelity vs success probability trade-off when photon addition is implemented with a beam-splitter](resources/photon_addition_performance_bs.png "Fidelity vs success probability trade-off when photon addition is implemented with a beam-splitter")
 
-The [photon_addition_performance_bs.py](scripts/photon_addition_performance_bs.py) script from the [scripts](scripts) directory illustrates, on selected states, the trade-off between fidelity and probability of success resulting from the non-ideal implementation of photon addition with a beam-splitter, in the (DV) boson sampling setting. The script can be run from the command line, and outputs data and plots to the ```results``` directory.
+The [photon_addition_performance_bs.py](scripts/photon_addition_performance_bs.py) script from the [scripts](scripts) directory illustrates, on selected states, the trade-off between fidelity and probability of success resulting from the non-ideal implementation of photon addition with a beam-splitter, in the (DV) boson sampling setting. The script can be run from the command line, and outputs data and plots to the ```results_bs``` directory.
 
 ![Fidelity vs success probability trade-off when photon addition is implemented with squeezing](resources/photon_addition_performance_sqz.png "Fidelity vs success probability trade-off when photon addition is implemented with squeezing")
 

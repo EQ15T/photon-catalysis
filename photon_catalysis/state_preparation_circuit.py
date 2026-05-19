@@ -11,6 +11,7 @@ import numpy as np
 
 from photon_catalysis.utils import StateDict, state_to_string
 
+
 class StatePreparationCircuit:
     """
     Abstract representation of a state preparation circuit
@@ -53,7 +54,9 @@ class StatePreparationCircuit:
         return self._name
 
     @staticmethod
-    def _linear_forms_to_unitaries(w: np.ndarray, corr_addition: float = 1) -> List[np.ndarray]:
+    def _linear_forms_to_unitaries(
+        w: np.ndarray, corr_addition: float = 1
+    ) -> List[np.ndarray]:
         """
         Converts a list of linear form to a list of unitaries.
         This implements algorithm 1 from Appendix C. https://arxiv.org/pdf/2507.19397
@@ -223,21 +226,31 @@ class StatePreparationCircuit:
         return program, post_select_indexer
 
 
-
-class ExactStatePreparationCircuitBS(StatePreparationCircuit):
-    def __init__(self, w: np.array, state: StateDict, r_addition: float = 0.99):
-        super().__init__(w, state, np.sqrt(r_addition))
+class StatePreparationCircuitBS(StatePreparationCircuit):
+    def __init__(
+        self,
+        w: np.array,
+        state: StateDict,
+        r_addition: float = 0.99,
+        exact_addition: bool = True,
+    ):
+        super().__init__(w, state, np.sqrt(r_addition) if exact_addition else 1.0)
         self._r_addition = r_addition
-    
+
     def to_perceval(self, decompose_unitaries: bool = True):
         return super().to_perceval(self._r_addition, decompose_unitaries)
 
 
-class ExactStatePreparationCircuitSQ(StatePreparationCircuit):
-    def __init__(self, w: np.array, state: StateDict, r_addition: float = 0.99):
-        super().__init__(w, state, 1 / np.cosh(r_addition))
+class StatePreparationCircuitSq(StatePreparationCircuit):
+    def __init__(
+        self,
+        w: np.array,
+        state: StateDict,
+        r_addition: float = 0.99,
+        exact_addition: bool = True,
+    ):
+        super().__init__(w, state, 1 / np.cosh(r_addition) if exact_addition else 1.0)
         self._r_addition = r_addition
-    
+
     def to_sf(self):
         return super().to_sf(self._r_addition)
-
